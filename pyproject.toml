@@ -16,7 +16,7 @@ license = "MIT"
 [project.urls]
 Homepage = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package"
 Repository = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package"
-Bug Tracker = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package/issues"
+Bug-Tracker = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
