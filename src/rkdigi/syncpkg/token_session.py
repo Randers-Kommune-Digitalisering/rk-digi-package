@@ -89,4 +89,4 @@ class ManagedOAuth2Session(OAuth2Session):
 
     @property
     def access_token_expiry(self):
-        return self.token.get("expires_at") if self.token else 0
+        return self.token.get("expires_at", 0) if self.token else 0
