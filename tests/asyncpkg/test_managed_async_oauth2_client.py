@@ -1,5 +1,4 @@
 import pytest
-# import asyncio
 import time
 from rkdigi.asyncpkg.async_token_client import ManagedAsyncOAuth2Client
 
@@ -9,14 +8,17 @@ DUMMY_CLIENT_ID = "dummy-client-id"
 DUMMY_CLIENT_SECRET = "dummy-secret"
 
 
-@pytest.mark.asyncio
-async def test_get_valid_token_refresh_branch(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
+@pytest.fixture
+def client():
+    return ManagedAsyncOAuth2Client(
         DUMMY_TOKEN_URL,
         DUMMY_CLIENT_ID,
         DUMMY_CLIENT_SECRET
     )
-    # Token is expired, has refresh_token
+
+
+@pytest.mark.asyncio
+async def test_get_valid_token_refresh_branch(client, monkeypatch):
     client.token = {"access_token": "abc",
                     "expires_at": time.time() - 100,
                     "refresh_token": "refresh"}
@@ -29,13 +31,7 @@ async def test_get_valid_token_refresh_branch(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_valid_token_valid_after_lock(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
-    # Token is expired before lock
+async def test_get_valid_token_valid_after_lock(client, monkeypatch):
     client.token = {"access_token": "abc", "expires_at": time.time() - 100}
     # Patch _is_token_valid to return False first, then True after lock
     call_count = {"count": 0}
@@ -54,13 +50,7 @@ async def test_get_valid_token_valid_after_lock(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_valid_token_expired_token_refresh_key_none(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
-    # Token is expired, refresh_token key is present but value is None
+async def test_expired_token_refresh_key_none(client, monkeypatch):
     client.token = {"access_token": "abc",
                     "expires_at": time.time() - 100,
                     "refresh_token": None}
@@ -78,13 +68,7 @@ async def test_get_valid_token_expired_token_refresh_key_none(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_valid_token_expired_token_no_refresh_key(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
-    # Token is expired, no refresh_token key at all
+async def test_expired_token_no_refresh_key(client, monkeypatch):
     client.token = {"access_token": "abc", "expires_at": time.time() - 100}
     called = {}
 
@@ -98,16 +82,9 @@ async def test_get_valid_token_expired_token_no_refresh_key(monkeypatch):
     assert called["fetch"]
     assert result == "fetched4"
 
-# Covers line 55: else branch in get_valid_token (no token, no refresh_token)
-
 
 @pytest.mark.asyncio
-async def test_get_valid_token_no_token_no_refresh(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
+async def test_get_valid_token_no_token_no_refresh(client, monkeypatch):
     client.token = {}
 
     called = {}
@@ -123,14 +100,8 @@ async def test_get_valid_token_no_token_no_refresh(monkeypatch):
     assert result == "fetched2"
 
 
-# Covers 76->81: request method when token is set (should not call fetch_token)
 @pytest.mark.asyncio
-async def test_request_with_token_calls_super(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
+async def test_request_with_token_calls_super(client, monkeypatch):
     client.token = {"access_token": "tok", "expires_at": time.time() + 1000}
     called = {}
 
@@ -159,12 +130,7 @@ def test_managed_async_oauth2_client_init():
 
 
 @pytest.mark.asyncio
-async def test_is_token_valid_cases():
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
+async def test_is_token_valid_cases(client):
     # No token
     client.token = None
     assert not client._is_token_valid()
@@ -180,25 +146,14 @@ async def test_is_token_valid_cases():
 
 
 @pytest.mark.asyncio
-async def test_get_valid_token_already_valid(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
+async def test_get_valid_token_already_valid(client, monkeypatch):
     client.token = {"access_token": "abc", "expires_at": time.time() + 1000}
     result = await client.get_valid_token()
     assert result == "abc"
 
 
 @pytest.mark.asyncio
-async def test_get_valid_token_no_token(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
-    # No token at all
+async def test_get_valid_token_no_token(client, monkeypatch):
     client.token = None
     called = {}
 
@@ -214,12 +169,7 @@ async def test_get_valid_token_no_token(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_request_fetch_token_and_super(monkeypatch):
-    client = ManagedAsyncOAuth2Client(
-        DUMMY_TOKEN_URL,
-        DUMMY_CLIENT_ID,
-        DUMMY_CLIENT_SECRET
-    )
+async def test_request_fetch_token_and_super(client, monkeypatch):
     client.token = None
     called = {}
 
