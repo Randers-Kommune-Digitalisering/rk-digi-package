@@ -81,7 +81,7 @@ class ManagedOAuth2Session(OAuth2Session):
 
     @property
     def access_token(self):
-        return self.token["access_token"] if self.token else None
+        return self.token.get("access_token") if self.token else None
 
     @property
     def refresh_token_value(self):
