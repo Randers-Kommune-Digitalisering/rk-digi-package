@@ -73,9 +73,5 @@ class ManagedAsyncOAuth2Client(AsyncOAuth2Client):
             return self.token["access_token"]
 
     async def request(self, method, url, **kwargs):
-        if not self.token:
-            await self.fetch_token(
-                url=self.token_url,
-                grant_type="client_credentials"
-            )
+        await self.get_valid_token()
         return await super().request(method, url, **kwargs)

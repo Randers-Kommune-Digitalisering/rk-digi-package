@@ -17,15 +17,15 @@ def session():
     )
 
 
-class dummy_request:
+class DummyRequest:
     url = "http://example.com"
     headers = {}
     body = b""
 
 
-class dummy_response:
+class DummyResponse:
     status_code = 200
-    request = dummy_request()
+    request = DummyRequest()
     headers = {}
     text = ""
 
@@ -170,7 +170,7 @@ def test_request_no_refresh_token(session, monkeypatch):
 
     def fake_super_request(self, method, url, **kwargs):
         called["called"] = True
-        return dummy_response()
+        return DummyResponse()
 
     def fake_fetch_token(*a, **kw):
         return {"access_token": "dummy", "expires_at": time.time() + 100}
@@ -178,4 +178,4 @@ def test_request_no_refresh_token(session, monkeypatch):
     monkeypatch.setattr(OAuth2Session, "request", fake_super_request)
     monkeypatch.setattr(OAuth2Session, "fetch_token", fake_fetch_token)
     result = session.request("GET", "http://example.com")
-    assert isinstance(result, dummy_response)
+    assert isinstance(result, DummyResponse)
