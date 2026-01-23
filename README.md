@@ -19,23 +19,3 @@ session = ManagedOAuth2Session(
 res = session.get("https://example.com/api/data")
 print(res.json())
 ```
-
-### ManagedAsyncOAuth2Client (async)
-An async OAuth2 client (subclass of `authlib.integrations.httpx_client.AsyncOAuth2Client`) with token refresh and concurrency control.
-
-**Example:**
-```python
-import asyncio
-from rkdigi.asyncpkg import ManagedAsyncOAuth2Client
-
-async def main():
-	client = ManagedAsyncOAuth2Client(
-		token_url="https://example.com/oauth/token",
-		client_id="your-client-id",
-		client_secret="your-client-secret"
-	)
-	res = await client.get("https://example.com/api/data")
-	print(res.json())
-
-asyncio.run(main())
-```
