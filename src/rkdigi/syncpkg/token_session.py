@@ -31,7 +31,6 @@ class ManagedOAuth2Session(OAuth2Session):
         self.client_id = client_id
         self.client_secret = client_secret
         self.extra_params = extra_params or {}
-        self._initial_token = None
         self._fetching_token = False
 
     def _get_auto_refresh_kwargs(self):
