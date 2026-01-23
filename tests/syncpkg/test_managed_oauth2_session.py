@@ -116,7 +116,7 @@ def test_reacquire_if_expired_not_expired(session):
 
 
 def test_reacquire_if_expired_fetching_token(session):
-    session.token = {}  # Use empty dict instead of None
+    session.token = {}  # Empty dict represents 'no token' state in these tests
     session._fetching_token = True
     session._reacquire_if_expired()
     session._fetching_token = False  # reset for other tests
