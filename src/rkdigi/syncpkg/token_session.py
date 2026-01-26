@@ -42,25 +42,19 @@ class ManagedOAuth2Session(OAuth2Session):
 
     def _acquire_token(self):
         logger.info("Acquiring new access token via OAuth2.")
+        self._fetching_token = True
         try:
-            self._fetching_token = True
-            try:
-                token = super().fetch_token(
-                    token_url=self.token_url,
-                    client_id=self.client_id,
-                    client_secret=self.client_secret,
-                    include_client_id=True,
-                    **self.extra_params
-                )
-            finally:
-                self._fetching_token = False
+            token = super().fetch_token(
+                token_url=self.token_url,
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                include_client_id=True,
+                **self.extra_params
+            )
             self.token = token
             return token
-        except ValueError as e:
-            raise RuntimeError(
-                f"Failed to acquire OAuth2 token.\n"
-                f"Original error: {e}"
-            ) from e
+        finally:
+            self._fetching_token = False
 
     def _reacquire_if_expired(self):
         now = time.time()
