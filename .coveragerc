@@ -1,0 +1,10 @@
+[run]
+source = src/rkdigi
+branch = True
+omit =
+    */__init__.py
+    */__pycache__/*
+
+[report]
+show_missing = True
+skip_covered = True
