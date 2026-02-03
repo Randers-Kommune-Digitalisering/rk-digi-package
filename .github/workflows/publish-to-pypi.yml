@@ -40,6 +40,7 @@ jobs:
         run: |
           pip install .
           pip install ".[test]"
+          pip install flake8
           flake8 src tests
           pytest --cov=src --cov-report=term --cov-fail-under=90
       - name: Install build tools
