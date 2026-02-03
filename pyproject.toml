@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rk-digi"
+version = "0.2.0"
+description = "Python package with useful stuff for projects in Randers kommune digitalisering"
+authors = [
+  { name = "Randers Kommune Digitalisering", email = "digitalisering@randers.dk" }
+]
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
+dependencies = [
+  "requests_oauthlib>=1.3.1"
+]
+
+[project.urls]
+Homepage = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package"
+Repository = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package"
+Bug-Tracker = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["rkdigi*"]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=7.0",
+  "pytest-asyncio>=0.20",
+  "pytest-cov>=4.0"
+]
