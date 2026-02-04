@@ -71,7 +71,7 @@ def test_invalid_db_type():
 # Sync Tests
 @pytest.mark.parametrize("db_type", ["postgres", "mssql"])
 def test_sync_manager_init_airflow(db_type, monkeypatch):
-    # Lines 65->69 in database_manager.py is covered by this test,
+    # Lines 65->69 in database_manager.py are covered by this test,
     # but due to monkeypatching/pytest-cov limitations
     # it is not visible in coverage report.
     class DummyEngine:
@@ -242,7 +242,7 @@ sys.modules["pyodbc"] = pyodbc
 @pytest.mark.asyncio
 @pytest.mark.parametrize("db_type", ["postgres", "mssql"])
 async def test_async_manager_init_airflow(db_type, monkeypatch):
-    # Lines 56->58 in database_manager.py is covered by this test,
+    # Lines 56->58 in database_manager.py are covered by this test,
     # but due to monkeypatching/pytest-cov limitations
     # it is not visible in coverage report.
     class DummyConnection:
