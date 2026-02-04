@@ -78,7 +78,13 @@ class DatabaseManager:
             pass
         else:
             raise ValueError(
-                "Insufficient parameters provided "
+                "Insufficient parameters provided. Either provide "
+                "`airflow_connection_id`, or provide all of "
+                "`username`, `password`, and `host` (with optional "
+                "`database` and `port`), or omit these arguments and "
+                "set the corresponding environment variables derived "
+                "from `profile_name` (e.g. '<PROFILE>_USERNAME', "
+                "'<PROFILE>_PASSWORD', '<PROFILE>_HOST')."
             )
 
         if not hasattr(self, "_engine"):
