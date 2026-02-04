@@ -120,7 +120,7 @@ class DatabaseManager:
 
     def can_connect(self):
         if self._async_mode:
-            raise RuntimeError("Use test_connection_async for async mode.")
+            raise RuntimeError("Use can_connect_async for async mode.")
         with self._engine.connect():
             pass
         return True
@@ -144,7 +144,7 @@ class DatabaseManager:
 
     async def can_connect_async(self):
         if not self._async_mode:
-            raise RuntimeError("Use test_connection for sync mode.")
+            raise RuntimeError("Use can_connect for sync mode.")
         async with self._engine.connect():
             pass
         return True
