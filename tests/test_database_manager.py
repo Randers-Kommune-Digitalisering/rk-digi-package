@@ -51,7 +51,7 @@ def test_singleton_behavior(monkeypatch):
     assert "singleton_test" not in DatabaseManager._instances
 
 
-def test_insuficient_credentials():
+def test_insufficient_credentials():
     with pytest.raises(ValueError):
         DatabaseManager(
             profile_name="incomplete",
