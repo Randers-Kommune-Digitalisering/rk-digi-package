@@ -74,6 +74,8 @@ def test_sync_manager_init_airflow(db_type, monkeypatch):
     # Lines 65->69 in database_manager.py are covered by this test,
     # but due to monkeypatching/pytest-cov limitations
     # it is not visible in coverage report.
+    # but due to monkeypatching/pytest-cov limitations
+    # it is not receive in coverage report.
     class DummyEngine:
         def dispose(self):
             pass
