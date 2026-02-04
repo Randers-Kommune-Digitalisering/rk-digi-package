@@ -89,8 +89,10 @@ class DatabaseManager:
                 driver = "mssql+aioodbc" if self._async_mode \
                     else "mssql+pymssql"
 
-            conn_str = f"{driver}://{parse.quote_plus(username)}: \
-                        {parse.quote_plus(password)}@{parse.quote_plus(host)}"
+            conn_str = (
+                f"{driver}://{parse.quote_plus(username)}:"
+                f"{parse.quote_plus(password)}@{parse.quote_plus(host)}"
+            )
             if port:
                 conn_str += f":{port}"
             if database:
