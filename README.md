@@ -106,7 +106,7 @@ db_manager = DatabaseManager(
 )
 ```
 #### Singleton explanation
-DatabaseManager implements singlton behavivour based on `profile_name`
+DatabaseManager implements singleton behavior based on `profile_name`
 ```python
 from rkdigi import DatabaseManager
 
