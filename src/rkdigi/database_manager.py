@@ -4,13 +4,21 @@ from typing import Literal
 from contextlib import asynccontextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session, DeclarativeMeta
 
 
 class DatabaseManager:
+    """
+    A singleton class to manage database connections and sessions.
+    Can handle PostgreSQL and MSSQL databases, with support for
+    both synchronous and asynchronous modes.
+    For synchronous PostgreSQL, it can also create tables
+    based on a provided SQLAlchemy declarative base model.
+    """
     _instances = {}
 
     def __new__(cls, profile_name: str, *args, **kwargs):
+        # Ensure singleton behavior based on profile_name
         if profile_name in cls._instances:
             return cls._instances[profile_name]
         instance = super().__new__(cls)
@@ -28,7 +36,12 @@ class DatabaseManager:
         host: str | None = None,
         port: int | None = None,
         async_mode: bool = False,
+        base_model: DeclarativeMeta | None = None
     ):
+        # Checking if already initialized
+        # to prevent re-initialization in singleton pattern.
+        # returns object with the same profile_name without re-initializing it.
+        # For re-initialization, dispose() must be called first.
         if getattr(self, "_initialized", False):
             return
         self._initialized = True
@@ -36,6 +49,7 @@ class DatabaseManager:
         self._async_mode = async_mode
 
         if self._async_mode:
+            # import libs needed for asynchronous mode
             from sqlalchemy.ext.asyncio import create_async_engine, \
                 async_sessionmaker, AsyncSession
 
@@ -45,9 +59,12 @@ class DatabaseManager:
             )
         elif airflow_connection_id:
             if self._async_mode:
+                # Get connection string from Airflow Connection
                 from airflow.hooks.base import BaseHook
                 conn = BaseHook.get_connection(airflow_connection_id)
                 conn_str = conn.get_uri()
+                # default drivers in airflow is sync ones, so we need to
+                # replace them with async drivers
                 if db_type == "postgres":
                     driver = "postgresql+asyncpg"
                 elif db_type == "mssql":
@@ -55,6 +72,7 @@ class DatabaseManager:
                 conn_str = f"{driver}://{conn_str.split('://', 1)[1]}"
                 self._engine = create_async_engine(conn_str)
             else:
+                # Getting SQLAlchemy engine from Airflow Hook (sync)
                 if db_type == "postgres":
                     from airflow.providers.postgres.hooks.postgres \
                         import PostgresHook
@@ -65,6 +83,9 @@ class DatabaseManager:
                     hook = MsSqlHook(mssql_conn_id=airflow_connection_id)
                 self._engine = hook.get_sqlalchemy_engine()
         elif all(p is None for p in (username, password, host)):
+            # user, pass and host are all None, try to get them from env vars
+            # If also missing from there an error
+            # will be raised later when trying to connect
             env_prefix = profile_name.upper() + "_"
             username = (os.getenv(env_prefix + "USERNAME")
                         or os.getenv(env_prefix + "USER"))
@@ -74,7 +95,13 @@ class DatabaseManager:
             database = os.getenv(env_prefix + "DATABASE")
             port_str = os.getenv(env_prefix + "PORT")
             port = int(port_str) if port_str is not None else None
+            if not all((username, password, host)):
+                raise ValueError(
+                    "Missing environment variables "
+                    f"for profile '{profile_name}'."
+                )
         elif all((username, password, host)):
+            # all required parameters are provided
             pass
         else:
             raise ValueError(
@@ -87,7 +114,10 @@ class DatabaseManager:
                 "'<PROFILE>_PASSWORD', '<PROFILE>_HOST')."
             )
 
+        # If airflow connection_id was provided, engine is already created
+        # so skip the following part
         if not hasattr(self, "_engine"):
+            # set driver based on db_type and if sync or async mode
             if db_type == "postgres":
                 driver = "postgresql+asyncpg" if self._async_mode \
                     else "postgresql+psycopg2"
@@ -95,10 +125,13 @@ class DatabaseManager:
                 driver = "mssql+aioodbc" if self._async_mode \
                     else "mssql+pymssql"
 
+            # Basic connection string
             conn_str = (
                 f"{driver}://{parse.quote_plus(username)}:"
                 f"{parse.quote_plus(password)}@{parse.quote_plus(host)}"
             )
+
+            # Add port and database if provided
             if port:
                 conn_str += f":{port}"
             if database:
@@ -110,33 +143,43 @@ class DatabaseManager:
                 # 'aioodbc' depends on ODBC driver and it must be specified.
                 if db_type == "mssql":
                     import pyodbc
+                    # Check system for available ODBC drivers
+                    # and add the first suitable one to connection string
                     drivers = [d for d in pyodbc.drivers()
                                if "ODBC Driver" in d and "SQL Server" in d]
                     conn_str += f"?driver={drivers[0].replace(' ', '+')}"
                 self._engine = create_async_engine(conn_str)
 
         if not self._async_mode:
-            self.can_connect()
+            self.can_connect()  # Check connection on init
+            # Create tables if base_model is provided.
+            if base_model:
+                base_model.metadata.create_all(self._engine)
             self._Session = sessionmaker(bind=self._engine)
         else:
+            # Check connection is skipped on init for async mode
+            # Can not call the async method from sync __init__
             self._Session = async_sessionmaker(
                 bind=self._engine,
                 class_=AsyncSession
             )
 
-    def can_connect(self):
+    def can_connect(self) -> bool | None:
+        """Check if a connection can be established."""
         if self._async_mode:
             raise RuntimeError("Use can_connect_async for async mode.")
         with self._engine.connect():
             pass
         return True
 
-    def get_session(self):
+    def get_session(self) -> Session:
+        """Get a synchronous database session."""
         if self._async_mode:
             raise RuntimeError("In async mode, use get_session_async instead.")
         return self._Session()
 
-    def dispose(self):
+    def dispose(self) -> None:
+        """Dispose of the database engine and clear the instance."""
         if hasattr(self, "_engine") and not self._async_mode:
             self._engine.dispose()
             self._engine = None
@@ -148,7 +191,8 @@ class DatabaseManager:
         else:
             raise RuntimeError("In async mode, use dispose_async instead.")
 
-    async def can_connect_async(self):
+    async def can_connect_async(self) -> bool | None:
+        """Check if a connection can be established asynchronously."""
         if not self._async_mode:
             raise RuntimeError("Use can_connect for sync mode.")
         async with self._engine.connect():
@@ -157,12 +201,14 @@ class DatabaseManager:
 
     @asynccontextmanager
     async def get_session_async(self):
+        """Get an asynchronous database session."""
         if not self._async_mode:
             raise RuntimeError("Not in async mode.")
         async with self._Session() as session:
             yield session
 
     async def dispose_async(self):
+        """Dispose of the async database engine and clear the instance."""
         if hasattr(self, "_engine") and self._async_mode:
             await self._engine.dispose()
             self._engine = None
@@ -173,3 +219,13 @@ class DatabaseManager:
                     del self._instances[name]
         else:
             raise RuntimeError("Not in async mode.")
+
+    async def create_tables_async(self, base_model: DeclarativeMeta):
+        """
+        Create tables based on the provided
+        SQLAlchemy declarative base model.
+        """
+        if not self._async_mode:
+            raise RuntimeError("Not in async mode.")
+        async with self._engine.begin() as conn:
+            await conn.run_sync(base_model.metadata.create_all)

@@ -38,6 +38,7 @@ res = session.get("https://example.com/api/data")
 	- pymssql (for Microsoft SQL Server, sync)
 	- aioodbc (for Microsoft SQL Server, async)
 	- pyodbc (required by aioodbc for async SQL Server)
+
 #### Sync example
 Basic sync example supplying credentials in constructor. DatabaseManager default to sync.
 ```python
@@ -90,4 +91,48 @@ db_manager = DatabaseManager(
 with db_manager.get_session() as session:
 	res = session.execute(text("SELECT 1"))
 db_manager.dispose()
+```
+
+#### Create tables example
+If DatabaseManager init is provided with a base model, it will create the tables in the database after testing it can connect.
+```python
+from rkdigi import DatabaseManager
+from mymodel import MyBaseModel
+
+db_manager = DatabaseManager(
+	profile_name='db_mydb',
+	db_type='postgres',
+	base_model=MyBaseModel
+)
+```
+#### Singleton explanation
+DatabaseManager implements singlton behavivour based on `profile_name`
+```python
+from rkdigi import DatabaseManager
+
+db_manager = DatabaseManager(
+	profile_name='db_mydb',  # same profile_name
+	db_type='postgres',
+	username='username',
+	password='password',
+	host='demo123.com'
+)
+
+db_manager = DatabaseManager(
+	profile_name='db_mydb',  # same profile_name
+	db_type='mssql',
+	username='user',
+	password='pass',
+	host='demoABC.com'
+)
+# db_manager will still have an engine for the postgres database on demo123.com
+db_manager.dispose()  # Only after calling dispose will it be re-initialized
+db_manager = DatabaseManager(
+	profile_name='db_mydb',  # same profile_name
+	db_type='mssql',
+	username='user',
+	password='pass',
+	host='demoABC.com'
+)
+# Now the new credentials are applied and a new engine created
 ```
