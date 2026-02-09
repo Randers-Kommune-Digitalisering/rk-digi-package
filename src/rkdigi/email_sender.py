@@ -166,11 +166,11 @@ class EmailSender:
     async def send_email_async(
         self,
         sender: str = "",
-        recipients: str | Sequence[str] = [],
+        recipients: str | Sequence[str] | None = None,
         subject: str = "",
         body: str = "",
-        cc: str | Sequence[str] = [],
-        attachments: Sequence[str | tuple[str, bytes]] = []
+        cc: str | Sequence[str] | None = None,
+        attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
         import aiosmtplib
         if self.sender_email and self._sender_password:
