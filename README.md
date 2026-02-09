@@ -150,7 +150,7 @@ email_sender.send_email(
 	body='Test Body'
 )
 ```
-#### Sync example
+#### Async example
 ```python
 import asyncio
 from rkdigi import EmailSender
