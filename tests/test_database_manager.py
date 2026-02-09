@@ -71,7 +71,7 @@ def test_invalid_db_type():
 # Sync Tests
 @pytest.mark.parametrize("db_type", ["postgres", "mssql"])
 def test_sync_manager_init_airflow(db_type, monkeypatch):
-    # Lines 65->69 in database_manager.py are covered by this test,
+    # Lines 80->84 in database_manager.py are covered by this test,
     # but due to monkeypatching/pytest-cov limitations
     # it is not visible in coverage report.
     class DummyEngine:
@@ -97,6 +97,9 @@ def test_sync_manager_init_airflow(db_type, monkeypatch):
 
 @pytest.mark.parametrize("db_type", ["postgres", "mssql"])
 def test_sync_manager_init_creds(db_type, monkeypatch):
+    # Lines 124->129 in database_manager.py are covered by this test,
+    # but due to monkeypatching/pytest-cov limitations
+    # it is not visible in coverage report.
     monkeypatch.setattr(DatabaseManager, "can_connect", lambda self: True)
     manager = DatabaseManager(
         profile_name="testprofile",
@@ -123,6 +126,48 @@ def test_sync_manager_init_env_vars(db_type, monkeypatch):
         db_type=db_type
     )
     assert manager._initialized
+
+
+def test_sync_manager_init_env_vars_missing(monkeypatch):
+    monkeypatch.setattr(DatabaseManager, "can_connect", lambda self: True)
+    monkeypatch.setenv("TESTDB_USERNAME", "envuser")
+    monkeypatch.setenv("TESTDB_PASSWORD", "envpass")
+    with pytest.raises(ValueError):
+        DatabaseManager(
+            profile_name="testdb",
+            db_type='postgres'
+        )
+
+
+def test_sync_manager_init_with_base_model(monkeypatch):
+    Base = sqlalchemy.orm.declarative_base()
+
+    class DummyEngine:
+        def dispose(self): pass
+
+    monkeypatch.setattr(
+        "rkdigi.database_manager.create_engine",
+        lambda *a, **k: DummyEngine()
+    )
+    monkeypatch.setattr(DatabaseManager, "can_connect", lambda self: True)
+
+    Base.create_all_called = False
+
+    def dummy_create_all(engine):
+        Base.create_all_called = True
+        assert isinstance(engine, DummyEngine)
+    Base.metadata.create_all = dummy_create_all
+
+    manager = DatabaseManager(
+        profile_name="basemodel_test",
+        db_type="postgres",
+        username="user",
+        password="pass",
+        host="localhost",
+        base_model=Base
+    )
+    assert isinstance(manager, DatabaseManager)
+    assert Base.create_all_called
 
 
 def test_can_connect_sync(monkeypatch):
@@ -242,7 +287,7 @@ sys.modules["pyodbc"] = pyodbc
 @pytest.mark.asyncio
 @pytest.mark.parametrize("db_type", ["postgres", "mssql"])
 async def test_async_manager_init_airflow(db_type, monkeypatch):
-    # Lines 56->58 in database_manager.py are covered by this test,
+    # Lines 70->72 in database_manager.py are covered by this test,
     # but due to monkeypatching/pytest-cov limitations
     # it is not visible in coverage report.
     class DummyConnection:
@@ -268,10 +313,6 @@ async def test_async_manager_init_airflow(db_type, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("db_type", ["postgres", "mssql"])
 async def test_async_manager_init_creds(db_type, monkeypatch):
-    # Lines 90->93 and 104->116 in database_manager.py
-    # are covered by this test, but due to
-    # monkeypatching/pytest-cov limitations
-    # it is not visible in coverage report.
     manager = DatabaseManager(
         profile_name=f"airflowtest_async_{db_type}",
         db_type=db_type,
@@ -356,3 +397,39 @@ def test_dispose_async(monkeypatch):
             manager._async_mode = False
             await manager.dispose_async()
     asyncio.run(run())
+
+
+@pytest.mark.asyncio
+async def test_create_tables_async(monkeypatch):
+    class DummyAsyncConn:
+        async def __aenter__(self): return self
+        async def __aexit__(self, exc_type, exc_val, exc_tb): pass
+
+        async def run_sync(self, fn):
+            DummyBaseModel.create_all_called = True
+            return fn(DummyBaseModel)
+
+    class DummyAsyncEngine:
+        def begin(self):
+            return DummyAsyncConn()
+
+    class DummyBaseModel:
+        metadata = types.SimpleNamespace(create_all=lambda engine: None)
+        create_all_called = False
+
+    manager = DatabaseManager(
+        profile_name="async_create_tables_test",
+        db_type="postgres",
+        username="user",
+        password="pass",
+        host="localhost",
+        async_mode=True
+    )
+    manager._engine = DummyAsyncEngine()
+    DummyBaseModel.create_all_called = False
+    await manager.create_tables_async(DummyBaseModel)
+    assert DummyBaseModel.create_all_called
+
+    with pytest.raises(RuntimeError):
+        manager._async_mode = False
+        await manager.create_tables_async(DummyBaseModel)
