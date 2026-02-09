@@ -57,7 +57,9 @@ class EmailSender:
             host=self._smtp_server,
             port=self._smtp_port
         ) as server:
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             if self.sender_email and self._sender_password:
                 if sender:
                     raise ValueError(
