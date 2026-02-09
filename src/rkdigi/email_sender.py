@@ -46,7 +46,7 @@ class EmailSender:
         body: str,
         cc: str | Sequence[str] | None,
         attachments: Sequence[str | tuple[str, bytes]] | None
-    ) -> tuple[MIMEMultipart, str, str]:
+    ) -> tuple[MIMEMultipart, str, Sequence[str]]:
         if recipients is None:
             recipients = []
         if cc is None:
