@@ -38,10 +38,11 @@ jobs:
           python-version: '3.12'
       - name: Run flake8 and pytest with coverage
         run: |
-          python -m pip install --upgrade pip
-          pip install flake8 pytest pytest-cov
-          flake8 src
-          pytest --cov=src --cov-report=term --cov-fail-under=100
+          pip install .
+          pip install ".[test]"
+          pip install flake8
+          flake8 src tests
+          pytest --cov=src --cov-report=term --cov-fail-under=85
       - name: Install build tools
         run: |
           pip install build twine

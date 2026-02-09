@@ -3,7 +3,7 @@ import time
 import types
 from requests_oauthlib import OAuth2Session
 
-from rkdigi.syncpkg.token_session import ManagedOAuth2Session
+from rkdigi import ManagedOAuth2Session
 
 DUMMY_TOKEN_URL = "https://example.com/token"
 DUMMY_CLIENT_ID = "dummy-client-id"
