@@ -13,7 +13,7 @@ Bug-Tracker = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package
 
 [project]
 name = "rk-digi"
-version = "1.0.0"
+version = "1.1.0"
 description = "Python package with useful stuff for projects in Randers Kommune - Digitalisering"
 authors = [
   { name = "Randers Kommune Digitalisering", email = "digitalisering@randers.dk" }
@@ -28,13 +28,18 @@ dependencies = [
 
 [project.optional-dependencies]
 postgres = [
-  "psycopg2>=2.9",
-  "asyncpg>=0.27"
+  "psycopg2>=2.9"
 ]
 mssql = [
-  "pymssql>=2.2",
+  "pymssql>=2.2"
+]
+
+async = [
   "aioodbc>=0.4",
-  "pyodbc>=4.0"
+  "pyodbc>=4.0",
+  "asyncpg>=0.27",
+  "aiosmtplib>=1.1.6"
+
 ]
 
 test = [

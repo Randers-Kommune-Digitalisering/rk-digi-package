@@ -1,4 +1,5 @@
 
+[![PyPI version](https://img.shields.io/pypi/v/rk-digi.svg)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
 # RK-digitalisering-package
 Python package with useful stuff for projects in Randers Kommune - Digitalisering.
 ## Classes
@@ -90,4 +91,34 @@ db_manager = DatabaseManager(
 with db_manager.get_session() as session:
 	res = session.execute(text("SELECT 1"))
 db_manager.dispose()
+```
+### EmailSender (sync + async)
+`EmailSender` is for sending emails from a SMTP server.
+#### Sync example
+```python
+from rkdigi import EmailSender
+
+email_sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+email_sender.send_email(
+	sender='from@example.com',
+	recipients='to@example.com',
+	subject='Test Subject',
+	body='Test Body'
+)
+```
+#### Sync example
+```python
+import asyncio
+from rkdigi import EmailSender
+
+async def send_email_func():
+    email_sender = EmailSender()
+    await email_sender.send_email_async(
+        sender='from@example.com',
+        recipients=['one@example.com', 'two@example.com'],
+        subject='Test Subject',
+        body='Test Body'
+    )
+
+asyncio.run(send_email_func())
 ```
