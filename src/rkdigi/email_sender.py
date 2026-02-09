@@ -97,11 +97,11 @@ class EmailSender:
             if cc_list:
                 msg["Cc"] = ", ".join(cc_list)
 
-            body = MIMEText(body, "html") \
+            body_part = MIMEText(body, "html") \
                 if body and "<html>" in body.lower() \
                 else MIMEText(body or " ", "plain")
 
-            msg.attach(body)
+            msg.attach(body_part)
 
             for att in attachments:
                 if isinstance(att, str):
