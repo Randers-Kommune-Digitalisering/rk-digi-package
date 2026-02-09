@@ -5,7 +5,7 @@ from rkdigi.email_sender import EmailSender
 from unittest.mock import patch
 
 
-def test_init_with_cred():
+def test_init_with_server_and_port():
     with patch('smtplib.SMTP') as mock_smtp:
         instance = mock_smtp.return_value.__enter__.return_value
         instance.ehlo.return_value = None
