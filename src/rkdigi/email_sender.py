@@ -41,12 +41,18 @@ class EmailSender:
     def send_email(
         self,
         sender: str = "",
-        recipients: str | Sequence[str] = [],
+        recipients: str | Sequence[str] | None = None,
         subject: str = "",
         body: str = "",
-        cc: str | Sequence[str] = [],
-        attachments: Sequence[str | tuple[str, bytes]] = []
+        cc: str | Sequence[str] | None = None,
+        attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
+        if recipients is None:
+            recipients = []
+        if cc is None:
+            cc = []
+        if attachments is None:
+            attachments = []
         with smtplib.SMTP(
             host=self._smtp_server,
             port=self._smtp_port
