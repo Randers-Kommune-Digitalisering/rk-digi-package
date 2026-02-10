@@ -205,7 +205,8 @@ def test_build_message_only_html_body():
         assert msg.get_payload()[0].get_content_subtype() == 'plain'
         assert msg.get_payload()[0].get_payload() == 'HTML Body\n\n'
         assert msg.get_payload()[1].get_content_subtype() == 'html'
-        assert msg.get_payload()[1].get_payload() == '<html><body>HTML Body</body></html>'
+        assert msg.get_payload()[1].get_payload() == \
+            '<html><body>HTML Body</body></html>'
 
 
 def test_send_email_basic():
