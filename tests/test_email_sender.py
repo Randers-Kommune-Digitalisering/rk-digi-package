@@ -196,7 +196,7 @@ def test_build_message_only_html_body():
         msg, from_addr, to_addrs = sender._build_message(
             sender='valid@example.com',
             reply_to=None,
-            recipients=['valid@example.vom'],
+            recipients=['valid@example.com'],
             subject='Test',
             body='<html><body>HTML Body</body></html>',
             cc=None,
