@@ -2,6 +2,7 @@ import os
 import smtplib
 from typing import Sequence
 from email import encoders
+from email.utils import formataddr
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -18,18 +19,33 @@ class EmailSender:
         smtp_server: str | None = None,
         smtp_port: int | None = None,
         sender_email: str | None = None,
-        sender_password: str | None = None
+        sender_password: str | None = None,
+        sender_name: str | None = None
     ):
         self._smtp_server = smtp_server or \
             os.environ.get("SMTP_SERVER", "smtp.randers.dk")
         self._smtp_port = smtp_port or int(os.environ.get("SMTP_PORT", 25))
         self.sender_email = sender_email
         self._sender_password = sender_password
+        if sender_name and sender_email:
+            self.sender = (sender_name, sender_email)
+        else:
+            self.sender = sender_email
         if not self._can_connect():
             raise ConnectionError(
                 f"Cannot connect to SMTP server "
                 f"{self._smtp_server}:{self._smtp_port}"
             )
+
+    def _check_address_header(self, address: str | tuple[str, str]) -> bool:
+        """
+        Method to check if the provided address is a valid address header.
+        """
+        if isinstance(address, str):
+            return '@' in address
+        elif isinstance(address, tuple) and len(address) == 2:
+            return '@' in address[1]
+        return False
 
     def _can_connect(self) -> bool:
         """
@@ -49,39 +65,46 @@ class EmailSender:
 
     def _build_message(
         self,
-        from_addr: str,
-        recipients: str | Sequence[str] | None,
+        sender: str | tuple[str, str],
+        recipients: Sequence[str | tuple[str, str]],
         subject: str,
         body: str,
-        cc: str | Sequence[str] | None,
+        cc: str | Sequence[str | tuple[str, str]] | None,
         attachments: Sequence[str | tuple[str, bytes]] | None
     ) -> tuple[MIMEMultipart, str, Sequence[str]]:
         """
-        Method to build the message  object and return it
+        Method to build the message object and return it
         along with from_addr and to_addrs.
         """
-        if recipients is None:
-            recipients = []
         if cc is None:
             cc = []
         if attachments is None:
             attachments = []
 
-        recipients_list = [recipients] if isinstance(recipients, str) \
-            else list(recipients)
-        cc_list = [cc] if isinstance(cc, str) else list(cc)
+        cc_list = [cc] if isinstance(cc, str) or isinstance(cc, tuple) else cc
 
-        to_addrs = recipients_list + cc_list
+        to_headers = recipients + cc_list
+
+        for addr in [sender] + to_headers:
+            if not self._check_address_header(addr):
+                raise ValueError(f"Invalid email address: {addr}")
 
         msg = MIMEMultipart()
-        msg["From"] = from_addr
+        msg["From"] = formataddr(sender) if isinstance(sender, tuple) \
+            else sender
         msg["Subject"] = subject or ""
 
-        if recipients_list:
-            msg["To"] = ", ".join(recipients_list)
+        if recipients:
+            msg["To"] = ", ".join(
+                formataddr(addr) if isinstance(addr, tuple) else addr
+                for addr in recipients
+            )
 
         if cc_list:
-            msg["Cc"] = ", ".join(cc_list)
+            msg["Cc"] = ", ".join(
+                formataddr(addr) if isinstance(addr, tuple) else addr
+                for addr in cc_list
+            )
 
         body_part = MIMEText(body, "html") \
             if body and "<html>" in body.lower() \
@@ -124,15 +147,21 @@ class EmailSender:
                     "Attachments must be file paths "
                     "or (filename, content) tuples."
                 )
+        from_addr = formataddr(sender) if isinstance(sender, tuple) else sender
+        to_addrs = [
+            formataddr(addr) if isinstance(addr, tuple) else addr
+            for addr in to_headers
+        ]
+
         return msg, from_addr, to_addrs
 
     def send_email(
         self,
-        sender: str = "",
-        recipients: str | Sequence[str] | None = None,
+        recipients: str | Sequence[str | tuple[str, str]],
+        sender: str | tuple[str, str] = "",
         subject: str = "",
         body: str = "",
-        cc: str | Sequence[str] | None = None,
+        cc: str | Sequence[str | tuple[str, str]] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
         """
@@ -156,19 +185,21 @@ class EmailSender:
                         user=self.sender_email,
                         password=self._sender_password
                     )
-                    from_addr = self.sender_email
-            else:
-                from_addr = sender or self.sender_email
 
-            if not from_addr or not recipients and not cc:
+            sender = sender or self.sender or self.sender_email
+
+            if not sender or not recipients and not cc:
                 raise ValueError(
                     "A sender and at least one recipient "
                     "(recipients or cc) must be specified."
                 )
 
+            recipients_list = [recipients] if isinstance(recipients, str) \
+                else recipients
+
             msg, from_addr, to_addrs = self._build_message(
-                from_addr=from_addr,
-                recipients=recipients,
+                sender=sender,
+                recipients=recipients_list,
                 subject=subject,
                 body=body,
                 cc=cc,
@@ -202,19 +233,21 @@ class EmailSender:
                     "Cannot specify sender when using "
                     "authenticated email sending."
                 )
-            from_addr = self.sender_email
-        else:
-            from_addr = sender or self.sender_email
 
-        if not from_addr or not recipients and not cc:
+        sender = sender or self.sender or self.sender_email
+
+        if not sender or not recipients and not cc:
             raise ValueError(
                 "A sender and at least one recipient "
                 "(recipients or cc) must be specified."
             )
 
+        recipients_list = [recipients] if isinstance(recipients, str) \
+            else recipients
+
         msg, from_addr, to_addrs = self._build_message(
-            from_addr=from_addr,
-            recipients=recipients,
+            sender=sender,
+            recipients=recipients_list,
             subject=subject,
             body=body,
             cc=cc,

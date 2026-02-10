@@ -25,6 +25,22 @@ def test_init_with_env(monkeypatch):
         assert sender._smtp_port == 2525
 
 
+def test_init_with_address_header():
+    with patch('smtplib.SMTP') as mock_smtp:
+        instance = mock_smtp.return_value.__enter__.return_value
+        instance.ehlo.return_value = None
+        sender = EmailSender(
+            smtp_server='smtp.example.com',
+            smtp_port=25,
+            sender_email='from@example.com',
+            sender_name='Mr. From',
+            sender_password='pw'
+            )
+        assert sender._smtp_server == 'smtp.example.com'
+        assert sender._smtp_port == 25
+        assert sender.sender == ('Mr. From', 'from@example.com')
+
+
 def test_init_fail():
     with patch('smtplib.SMTP', side_effect=Exception('fail')):
         with pytest.raises(ConnectionError):
@@ -45,6 +61,66 @@ def test_can_connect_false():
         sender._smtp_server = 'smtp.example.com'
         sender._smtp_port = 25
         assert sender._can_connect() is False
+
+
+def test_check_address_header_valid():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        assert sender._check_address_header(
+            address='example@example.com'
+        ) is True
+        assert sender._check_address_header(
+            address=('Example', 'example@example.com')
+        ) is True
+
+
+def test_check_address_header_invalid():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        assert sender._check_address_header(
+            address='example-example.com'
+        ) is False
+        assert sender._check_address_header(
+            address=('Example', 'example-example.com')
+        ) is False
+        assert sender._check_address_header(
+            address=('Example',)
+        ) is False
+        assert sender._check_address_header(
+            None
+        ) is False
+
+
+def test_build_message_invalid_address():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        with pytest.raises(ValueError, match='Invalid email address'):
+            msg, from_addr, to_addrs = sender._build_message(
+                sender='invalid-email',
+                recipients=['valid@example.com'],
+                subject='Test',
+                body='Body',
+                cc=None,
+                attachments=None
+            )
+        with pytest.raises(ValueError, match='Invalid email address'):
+            msg, from_addr, to_addrs = sender._build_message(
+                sender='valid@example.com',
+                recipients=['invalid-email'],
+                subject='Test',
+                body='Body',
+                cc=None,
+                attachments=None
+            )
+        with pytest.raises(ValueError, match='Invalid email address'):
+            msg, from_addr, to_addrs = sender._build_message(
+                sender='valid@example.com',
+                recipients=['valid@example.com'],
+                subject='Test',
+                body='Body',
+                cc=['invalid-email'],
+                attachments=None
+            )
 
 
 def test_send_email_basic():
