@@ -190,6 +190,24 @@ def test_build_message_invalid_address():
             )
 
 
+def test_build_message_only_html_body():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        msg, from_addr, to_addrs = sender._build_message(
+            sender='valid@example.com',
+            reply_to=None,
+            recipients=['valid@example.vom'],
+            subject='Test',
+            body='<html><body>HTML Body</body></html>',
+            cc=None,
+            attachments=None
+        )
+        assert msg.get_payload()[0].get_content_subtype() == 'plain'
+        assert msg.get_payload()[0].get_payload() == 'HTML Body\n\n'
+        assert msg.get_payload()[1].get_content_subtype() == 'html'
+        assert msg.get_payload()[1].get_payload() == '<html><body>HTML Body</body></html>'
+
+
 def test_send_email_basic():
     with patch('smtplib.SMTP') as mock_smtp:
         instance = mock_smtp.return_value.__enter__.return_value

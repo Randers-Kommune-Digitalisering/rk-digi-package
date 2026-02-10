@@ -1,6 +1,7 @@
 import os
 import smtplib
 from typing import Sequence
+import html2text
 from email import encoders
 from email.utils import formataddr
 from email.mime.base import MIMEBase
@@ -140,6 +141,10 @@ class EmailSender:
         body_part = MIMEText(body, "html") \
             if body and "<html>" in body.lower() \
             else MIMEText(body or " ", "plain")
+
+        if body_part.get_content_subtype() == "html":
+            plain_text = html2text.html2text(body)
+            msg.attach(MIMEText(plain_text, "plain"))
 
         msg.attach(body_part)
 
