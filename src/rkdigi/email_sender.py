@@ -20,17 +20,42 @@ class EmailSender:
         smtp_port: int | None = None,
         sender_email: str | None = None,
         sender_password: str | None = None,
-        sender_name: str | None = None
+        sender_name: str | None = None,
+        reply_to_email: str | None = None,
+        reply_to_name: str | None = None
     ):
         self._smtp_server = smtp_server or \
             os.environ.get("SMTP_SERVER", "smtp.randers.dk")
         self._smtp_port = smtp_port or int(os.environ.get("SMTP_PORT", 25))
+
         self.sender_email = sender_email
         self._sender_password = sender_password
-        if sender_name and sender_email:
-            self.sender = (sender_name, sender_email)
+        if sender_email:
+            if self._check_address_header(sender_email):
+                if sender_name:
+                    self.sender = (sender_name, sender_email)
+                else:
+                    self.sender = sender_email
+            else:
+                raise ValueError(
+                    f"Invalid sender email address: {sender_email}"
+                )
         else:
-            self.sender = sender_email
+            self.sender = None
+
+        if reply_to_email:
+            if self._check_address_header(reply_to_email):
+                if reply_to_name:
+                    self.reply_to = (reply_to_name, reply_to_email)
+                else:
+                    self.reply_to = reply_to_email
+            else:
+                raise ValueError(
+                    f"Invalid reply-to email address: {reply_to_email}"
+                )
+        else:
+            self.reply_to = None
+
         if not self._can_connect():
             raise ConnectionError(
                 f"Cannot connect to SMTP server "
@@ -66,6 +91,7 @@ class EmailSender:
     def _build_message(
         self,
         sender: str | tuple[str, str],
+        reply_to: str | tuple[str, str],
         recipients: Sequence[str | tuple[str, str]],
         subject: str,
         body: str,
@@ -85,14 +111,17 @@ class EmailSender:
 
         to_headers = recipients + cc_list
 
-        for addr in [sender] + to_headers:
+        for addr in [sender] + to_headers + ([reply_to] if reply_to else []):
             if not self._check_address_header(addr):
                 raise ValueError(f"Invalid email address: {addr}")
 
         msg = MIMEMultipart()
         msg["From"] = formataddr(sender) if isinstance(sender, tuple) \
             else sender
-        msg["Subject"] = subject or ""
+
+        if reply_to:
+            msg["Reply-To"] = formataddr(reply_to) \
+                if isinstance(reply_to, tuple) else reply_to
 
         if recipients:
             msg["To"] = ", ".join(
@@ -105,6 +134,8 @@ class EmailSender:
                 formataddr(addr) if isinstance(addr, tuple) else addr
                 for addr in cc_list
             )
+
+        msg["Subject"] = subject or ""
 
         body_part = MIMEText(body, "html") \
             if body and "<html>" in body.lower() \
@@ -159,6 +190,7 @@ class EmailSender:
         self,
         recipients: str | Sequence[str | tuple[str, str]],
         sender: str | tuple[str, str] = "",
+        reply_to: str | tuple[str, str] | None = None,
         subject: str = "",
         body: str = "",
         cc: str | Sequence[str | tuple[str, str]] | None = None,
@@ -199,6 +231,7 @@ class EmailSender:
 
             msg, from_addr, to_addrs = self._build_message(
                 sender=sender,
+                reply_to=reply_to or self.reply_to,
                 recipients=recipients_list,
                 subject=subject,
                 body=body,
@@ -215,6 +248,7 @@ class EmailSender:
     async def send_email_async(
         self,
         sender: str = "",
+        reply_to: str | tuple[str, str] | None = None,
         recipients: str | Sequence[str] | None = None,
         subject: str = "",
         body: str = "",
@@ -247,6 +281,7 @@ class EmailSender:
 
         msg, from_addr, to_addrs = self._build_message(
             sender=sender,
+            reply_to=reply_to or self.reply_to,
             recipients=recipients_list,
             subject=subject,
             body=body,
