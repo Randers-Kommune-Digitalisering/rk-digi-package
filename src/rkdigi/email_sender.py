@@ -42,7 +42,7 @@ class EmailSender:
                     f"Invalid sender email address: {sender_email}"
                 )
         else:
-            self.sender = None
+            self.sender = ""
 
         if reply_to_email:
             if self._check_address_header(reply_to_email):
@@ -55,7 +55,7 @@ class EmailSender:
                     f"Invalid reply-to email address: {reply_to_email}"
                 )
         else:
-            self.reply_to = None
+            self.reply_to = ""
 
         if not self._can_connect():
             raise ConnectionError(
