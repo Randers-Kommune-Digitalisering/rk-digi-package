@@ -8,6 +8,11 @@ from email.mime.multipart import MIMEMultipart
 
 
 class EmailSender:
+    """
+    Class to send emails using SMTP server.
+    It supports both synchronous and asynchronous sending of emails,
+    as well as attachments.
+    """
     def __init__(
         self,
         smtp_server: str | None = None,
@@ -27,6 +32,10 @@ class EmailSender:
             )
 
     def _can_connect(self) -> bool:
+        """
+        method to check if connection to
+        SMTP server can be established.
+        """
         try:
             with smtplib.SMTP(
                 host=self._smtp_server,
@@ -47,6 +56,10 @@ class EmailSender:
         cc: str | Sequence[str] | None,
         attachments: Sequence[str | tuple[str, bytes]] | None
     ) -> tuple[MIMEMultipart, str, Sequence[str]]:
+        """
+        Method to build the message  object and return it
+        along with from_addr and to_addrs.
+        """
         if recipients is None:
             recipients = []
         if cc is None:
@@ -122,6 +135,11 @@ class EmailSender:
         cc: str | Sequence[str] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
+        """
+        Sends an email with the specified parameters (sync).
+        Will try to authenticate with the SMTP server
+        if sender_email and sender_password were provided in the constructor.
+        """
         with smtplib.SMTP(
             host=self._smtp_server,
             port=self._smtp_port
@@ -172,6 +190,11 @@ class EmailSender:
         cc: str | Sequence[str] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
+        """
+        Sends an email with the specified parameters (async).
+        Will try to authenticate with the SMTP server
+        if sender_email and sender_password were provided in the constructor.
+        """
         import aiosmtplib
         if self.sender_email and self._sender_password:
             if sender:
