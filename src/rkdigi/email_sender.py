@@ -208,7 +208,8 @@ class EmailSender:
         """
         with smtplib.SMTP(
             host=self._smtp_server,
-            port=self._smtp_port
+            port=self._smtp_port,
+            timeout=60
         ) as server:
             server.starttls()
             if self.sender_email and self._sender_password:
