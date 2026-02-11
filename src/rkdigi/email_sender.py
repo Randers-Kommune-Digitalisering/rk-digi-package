@@ -195,7 +195,7 @@ class EmailSender:
         self,
         recipients: str | list[str | tuple[str, str]],
         sender: str | tuple[str, str] = "",
-        reply_to: str | tuple[str, str] | None = None,
+        reply_to: str | tuple[str, str] = "",
         subject: str = "",
         body: str = "",
         cc: str | list[str | tuple[str, str]] | None = None,

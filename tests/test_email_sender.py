@@ -157,9 +157,9 @@ def test_build_message_invalid_address():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
         with pytest.raises(ValueError, match='Invalid email address'):
-            msg, from_addr, to_addrs = sender._build_message(
+            _, _, _ = sender._build_message(
                 sender='invalid-email',
-                reply_to=None,
+                reply_to="",
                 recipients=['valid@example.com'],
                 subject='Test',
                 body='Body',
@@ -167,7 +167,7 @@ def test_build_message_invalid_address():
                 attachments=None
             )
         with pytest.raises(ValueError, match='Invalid email address'):
-            msg, from_addr, to_addrs = sender._build_message(
+            _, _, _ = sender._build_message(
                 sender='valid@example.com',
                 recipients=['invalid-email'],
                 reply_to="",
@@ -177,7 +177,7 @@ def test_build_message_invalid_address():
                 attachments=None
             )
         with pytest.raises(ValueError, match='Invalid email address'):
-            msg, from_addr, to_addrs = sender._build_message(
+            _, _, _ = sender._build_message(
                 sender='valid@example.com',
                 reply_to="",
                 recipients=['valid@example.com'],
@@ -187,7 +187,7 @@ def test_build_message_invalid_address():
                 attachments=None
             )
         with pytest.raises(ValueError, match='Invalid email address'):
-            msg, from_addr, to_addrs = sender._build_message(
+            _, _, _ = sender._build_message(
                 sender='valid@example.com',
                 reply_to="invalid-email",
                 recipients=['valid@example.com'],
@@ -201,9 +201,9 @@ def test_build_message_invalid_address():
 def test_build_message_only_html_body():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        msg, from_addr, to_addrs = sender._build_message(
+        msg, _, _ = sender._build_message(
             sender='valid@example.com',
-            reply_to=None,
+            reply_to="",
             recipients=['valid@example.com'],
             subject='Test',
             body='<html><body>HTML Body</body></html>',
