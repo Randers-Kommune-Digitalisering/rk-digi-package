@@ -133,16 +133,24 @@ def test_build_message_valid_address():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
         msg, from_addr, to_addrs = sender._build_message(
-            sender='valid@example.com',
-            reply_to='valid@example.com',
-            recipients=['valid@example.com'],
+            sender=('Valid Sender', 'valid1@example.com'),
+            reply_to='valid2@example.com',
+            recipients=[
+                'valid3@example.com',
+                ('Valid Recipient', 'valid4@example.com')
+            ],
             subject='Test',
             body='Body',
             cc=None,
             attachments=None
         )
-        assert 'valid@example.com' in from_addr
-        assert 'valid@example.com' in to_addrs
+
+        assert 'valid1@example.com' == from_addr
+        assert 'valid2@example.com' == msg['Reply-To']
+        assert isinstance(to_addrs, list) and \
+            all(isinstance(addr, str) for addr in to_addrs)
+        assert 'valid3@example.com' in to_addrs
+        assert 'valid4@example.com' in to_addrs
 
 
 def test_build_message_invalid_address():

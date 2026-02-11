@@ -183,9 +183,9 @@ class EmailSender:
                     "Attachments must be file paths "
                     "or (filename, content) tuples."
                 )
-        from_addr = formataddr(sender) if isinstance(sender, tuple) else sender
+        from_addr = sender[1] if isinstance(sender, tuple) else sender
         to_addrs = [
-            formataddr(addr) if isinstance(addr, tuple) else addr
+            addr[1] if isinstance(addr, tuple) else addr
             for addr in to_headers
         ]
 
