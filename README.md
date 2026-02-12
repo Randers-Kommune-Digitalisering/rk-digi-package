@@ -1,4 +1,5 @@
 
+[![PyPI version](https://img.shields.io/pypi/v/rk-digi.svg)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
 # RK-digitalisering-package
 Python package with useful stuff for projects in Randers Kommune - Digitalisering.
 ## Classes
@@ -92,7 +93,6 @@ with db_manager.get_session() as session:
 	res = session.execute(text("SELECT 1"))
 db_manager.dispose()
 ```
-
 #### Create tables example
 If DatabaseManager init is provided with a base model, it will create the tables in the database after testing it can connect.
 ```python
@@ -135,4 +135,39 @@ db_manager = DatabaseManager(
 	host='demoABC.com'
 )
 # Now the new credentials are applied and a new engine created
+```
+### EmailSender (sync + async)
+`EmailSender` is for sending emails from a SMTP server. For takes both just email address and address headers with names (tuple), like; `('Name', 'name@email.com)`.
+Emails with html body will get a plain text body added as well. Fallback for email clients not supporting html. Attachments can be given either as a path to a file (string) or as filename and data in bytes (tuple).
+#### Sync example
+```python
+from rkdigi import EmailSender
+
+email_sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+email_sender.send_email(
+	sender=('No Reply', 'noreply@example.com'),
+	reply_to='real@example.com',
+	recipients='to@example.com',
+	cc=[('CC', 'cc@example.com')]
+	subject='Test Subject',
+	body='<html><body>Test Body</body></html>',
+	attachments=[('myfile.txt', b'<somebytes>')]
+)
+```
+#### Async example
+```python
+import asyncio
+from rkdigi import EmailSender
+
+async def send_email_func():
+    email_sender = EmailSender()
+    await email_sender.send_email_async(
+        sender='from@example.com',
+        recipients=[('One', 'one@example.com'), 'two@example.com'],
+        subject='Test Subject',
+        body='Test Body',
+		attachments=['testdir/test.txt']
+    )
+
+asyncio.run(send_email_func())
 ```
