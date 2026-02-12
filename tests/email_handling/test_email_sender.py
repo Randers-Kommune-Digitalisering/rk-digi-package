@@ -1,7 +1,7 @@
 import sys
 import types
 import pytest
-from rkdigi.email_sender import EmailSender
+from rkdigi.email_handling import EmailSender
 from unittest.mock import patch
 
 

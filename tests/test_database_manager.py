@@ -324,7 +324,6 @@ async def test_async_manager_init_creds(db_type, monkeypatch):
     assert isinstance(manager, DatabaseManager)
 
 
-@pytest.mark.asyncio
 def test_can_connect_async():
     manager = DatabaseManager(
         profile_name="connect_async_test",
@@ -342,7 +341,6 @@ def test_can_connect_async():
         asyncio.run(manager.can_connect_async())
 
 
-@pytest.mark.asyncio
 def test_get_session_async(monkeypatch):
     monkeypatch.setattr(DatabaseManager, "can_connect", lambda self: True)
 
@@ -371,7 +369,6 @@ def test_get_session_async(monkeypatch):
     asyncio.run(run())
 
 
-@pytest.mark.asyncio
 def test_dispose_async(monkeypatch):
     monkeypatch.setattr(DatabaseManager, "can_connect", lambda self: True)
     manager = DatabaseManager(
