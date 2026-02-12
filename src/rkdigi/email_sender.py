@@ -96,7 +96,7 @@ class EmailSender:
         recipients: list[str | tuple[str, str]],
         subject: str,
         body: str,
-        cc: str | list[str | tuple[str, str]] | None,
+        cc: str | tuple[str, str] | list[str | tuple[str, str]] | None,
         attachments: Sequence[str | tuple[str, bytes]] | None
     ) -> tuple[MIMEMultipart, str, Sequence[str]]:
         """
@@ -193,7 +193,7 @@ class EmailSender:
 
     def send_email(
         self,
-        recipients: str | list[str | tuple[str, str]],
+        recipients: str | tuple[str, str] | list[str | tuple[str, str]],
         sender: str | tuple[str, str] = "",
         reply_to: str | tuple[str, str] = "",
         subject: str = "",

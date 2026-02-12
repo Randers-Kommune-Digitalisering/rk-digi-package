@@ -137,17 +137,21 @@ db_manager = DatabaseManager(
 # Now the new credentials are applied and a new engine created
 ```
 ### EmailSender (sync + async)
-`EmailSender` is for sending emails from a SMTP server.
+`EmailSender` is for sending emails from a SMTP server. For takes both just email address and address headers with names (tuple), like; `('Name', 'name@email.com)`.
+Emails with html body will get a plain text body added as well. Fallback for email clients not supporting html. Attachments can be given either as a path to a file (string) or as filename and data in bytes (tuple).
 #### Sync example
 ```python
 from rkdigi import EmailSender
 
 email_sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
 email_sender.send_email(
-	sender='from@example.com',
+	sender=('No Reply', 'noreply@example.com'),
+	reply_to='real@example.com',
 	recipients='to@example.com',
+	cc=[('CC', 'cc@example.com')]
 	subject='Test Subject',
-	body='Test Body'
+	body='<html><body>Test Body</body></html>',
+	attachments=[('myfile.txt', b'<somebytes>')]
 )
 ```
 #### Async example
@@ -159,9 +163,11 @@ async def send_email_func():
     email_sender = EmailSender()
     await email_sender.send_email_async(
         sender='from@example.com',
-        recipients=['one@example.com', 'two@example.com'],
+        recipients=[('One', 'one@example.com'), 'two@example.com'],
         subject='Test Subject',
-        body='Test Body'
+        body='Test Body',
+		attachments=['testdir/test.txt']
     )
 
 asyncio.run(send_email_func())
+```
