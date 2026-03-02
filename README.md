@@ -199,17 +199,18 @@ if not first_email.is_multipart():
 #### Async example
 ```python
 import asyncio
-from rkdigi import EmailSender
-def async get_emails():
+from rkdigi import EmailReader
+
+async def get_emails():
 	reader = EmailReader(
 		email='example@email.com',
 		password='password',
 		imap_server='imap.example.com',
 		imap_port=143
 	)
-	folders = reader.list_mailboxes()
-	emails, failed_email_ids = reader.get_emails(
-		mailbox="INBOX",
+	folders = await reader.list_mailboxes_async()
+	emails, failed_email_ids = await reader.get_emails_async(
+		mailbox=folders[0],
 		criteria="ALL",
 		modifiers="\\Seen",
 		max=10
