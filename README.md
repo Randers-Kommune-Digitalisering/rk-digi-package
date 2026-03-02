@@ -1,4 +1,5 @@
 
+[![PyPI version](https://img.shields.io/pypi/v/rk-digi.svg)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
 # RK-digitalisering-package
 Python package with useful stuff for projects in Randers Kommune - Digitalisering.
 ## Classes
@@ -92,7 +93,6 @@ with db_manager.get_session() as session:
 	res = session.execute(text("SELECT 1"))
 db_manager.dispose()
 ```
-
 #### Create tables example
 If DatabaseManager init is provided with a base model, it will create the tables in the database after testing it can connect.
 ```python
@@ -136,3 +136,86 @@ db_manager = DatabaseManager(
 )
 # Now the new credentials are applied and a new engine created
 ```
+### EmailSender (sync + async)
+`EmailSender` is for sending emails from a SMTP server. It takes both just email addresses (string) and address headers with names (tuple), like; `('Name', 'name@email.com)`.
+Emails with html body will get a plain text body added as well, fallback for email clients not supporting html. Attachments can be given either as a path to a file (string) or as filename and data in bytes (tuple).
+#### Sync example
+```python
+from rkdigi import EmailSender
+
+email_sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+email_sender.send_email(
+	sender=('No Reply', 'noreply@example.com'),
+	reply_to='real@example.com',
+	recipients='to@example.com',
+	cc=[('CC', 'cc@example.com')]
+	subject='Test Subject',
+	body='<html><body>Test Body</body></html>',
+	attachments=[('myfile.txt', b'<somebytes>')]
+)
+```
+#### Async example
+```python
+import asyncio
+from rkdigi import EmailSender
+
+async def send_email_func():
+    email_sender = EmailSender()
+    await email_sender.send_email_async(
+        sender='from@example.com',
+        recipients=[('One', 'one@example.com'), 'two@example.com'],
+        subject='Test Subject',
+        body='Test Body',
+		attachments=['testdir/test.txt']
+    )
+
+asyncio.run(send_email_func())
+```
+### EmailReader (sync + async)
+`EmailReader` is for reading emails from an IMAP server. The class provides a method for getting a list of mailboxes/folders: `list_mailboxes` / `list_mailboxes_async`.
+
+Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `modifiers` parameter is the flags will be set for the returned emails. If set to `None` no flags will be set (this is the default). Multiple flags must be seperated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects, the other with ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
+#### Sync example
+```python
+from rkdigi import EmailReader
+reader = EmailReader(
+	email='example@email.com',
+	password='password',
+	imap_server='imap.example.com',
+	imap_port=143
+)
+folders = reader.list_mailboxes()
+emails, failed_email_ids = reader.get_emails(
+	mailbox=folder[0],
+	criteria="UNSEEN",
+	modifiers=None
+)
+first_email = emails[0]
+if not first_email.is_multipart():
+	charset = first_email.get_content_charset()
+	body = first_email.get_payload(decode=True)
+	normal_string_body = body.decode(charset)
+```
+#### Async example
+```python
+import asyncio
+from rkdigi import EmailReader
+
+async def get_emails():
+	reader = EmailReader(
+		email='example@email.com',
+		password='password',
+		imap_server='imap.example.com',
+		imap_port=143
+	)
+	folders = await reader.list_mailboxes_async()
+	emails, failed_email_ids = await reader.get_emails_async(
+		mailbox=folders[0],
+		criteria="ALL",
+		modifiers="\\Seen",
+		max=10
+	)
+asyncio.run(get_emails())
+```
+### EmailManager (sync + async)
+`EmailManager` just initiate 
