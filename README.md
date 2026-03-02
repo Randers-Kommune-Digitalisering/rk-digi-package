@@ -1,5 +1,5 @@
 
-[![PyPI version](https://img.shields.io/pypi/v/rk-digi.svg)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
+[![PyPI version](https://img.shields.io/pypi/v/rk-digi?label=PyPI)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
 # RK-digitalisering-package
 Python package with useful stuff for projects in Randers Kommune - Digitalisering.
 ## Classes
