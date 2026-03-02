@@ -248,6 +248,42 @@ def test_get_emails_with_max(monkeypatch):
     assert failed == []
 
 
+def test_get_emails_with_modifiers(monkeypatch):
+    class DummyIMAP:
+        def __init__(self, host, port): pass
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        def starttls(self): pass
+        def login(self, email, password): return ("OK", None)
+        def select(self, mailbox): return ("OK", None)
+
+        def search(self, charset, criteria):
+            return ("OK", [b'1 2 3 4'])
+
+        def fetch(self, email_id, _):
+            msg = f"From: foo@bar.com\nSubject: \
+                Test {email_id.decode()}\n\nBody".encode()
+            return ("OK", [(None, msg)])
+
+        def store(self, email_id, command, flags):
+            assert command == '+FLAGS'
+            assert flags == "\\Seen"
+
+    monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
+    with patch(ercc, return_value=True):
+        reader = EmailReader(
+            email=EMAIL,
+            password=PASSWORD,
+            imap_server=IMAP_SERVER,
+            imap_port=IMAP_PORT
+        )
+    emails, failed = reader.get_emails(modifiers="\\Seen", max=2)
+    assert len(emails) == 2
+    assert emails[0]["Subject"] == "Test 1"
+    assert emails[1]["Subject"] == "Test 2"
+    assert failed == []
+
+
 @pytest.mark.asyncio
 async def test_list_mailboxes_async(monkeypatch):
     class DummyIMAP:
@@ -289,6 +325,9 @@ async def test_get_emails_async(monkeypatch):
             msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
             return ("OK", [(None, msg)])
 
+        def store(self, email_id, command, flags):
+            pass
+
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
         reader = EmailReader(
@@ -321,6 +360,9 @@ async def test_get_emails_async_with_max(monkeypatch):
                 Test {email_id.decode()}\n\nBody".encode()
             return ("OK", [(None, msg)])
 
+        def store(self, email_id, command, flags):
+            pass
+
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
         reader = EmailReader(
@@ -330,6 +372,43 @@ async def test_get_emails_async_with_max(monkeypatch):
             imap_port=IMAP_PORT
         )
     emails, failed = await reader.get_emails_async(max=2)
+    assert len(emails) == 2
+    assert emails[0]["Subject"] == "Test 1"
+    assert emails[1]["Subject"] == "Test 2"
+    assert failed == []
+
+
+@pytest.mark.asyncio
+async def test_get_emails_async_with_modifiers(monkeypatch):
+    class DummyIMAP:
+        def __init__(self, host, port): pass
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        def starttls(self): pass
+        def login(self, email, password): return ("OK", None)
+        def select(self, mailbox): return ("OK", None)
+
+        def search(self, charset, criteria):
+            return ("OK", [b'1 2 3 4'])
+
+        def fetch(self, email_id, _):
+            msg = f"From: foo@bar.com\nSubject: \
+                Test {email_id.decode()}\n\nBody".encode()
+            return ("OK", [(None, msg)])
+
+        def store(self, email_id, command, flags):
+            assert command == '+FLAGS'
+            assert flags == "\\Seen"
+
+    monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
+    with patch(ercc, return_value=True):
+        reader = EmailReader(
+            email=EMAIL,
+            password=PASSWORD,
+            imap_server=IMAP_SERVER,
+            imap_port=IMAP_PORT
+        )
+    emails, failed = await reader.get_emails_async(modifiers="\\Seen", max=2)
     assert len(emails) == 2
     assert emails[0]["Subject"] == "Test 1"
     assert emails[1]["Subject"] == "Test 2"
