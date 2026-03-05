@@ -1,7 +1,9 @@
 import os
+import re
 import asyncio
 import imaplib
 import smtplib
+from html import unescape
 from typing import Sequence
 import email as email_module
 from email import encoders
@@ -10,8 +12,6 @@ from email.message import EmailMessage
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-import html2text
 
 
 class EmailSender:
@@ -94,6 +94,91 @@ class EmailSender:
         except Exception:
             return False
 
+    def _is_html(self, body: str) -> bool:
+        if not body:
+            return False
+        lower = body.lower()
+        if "<html" in lower:
+            return True
+        return bool(
+            re.search(
+                r"<\s*(p|br|div|span|table|a|body|head|style|strong|em|ul|ol|li)\b",
+                lower,
+            )
+        )
+
+    def _html_to_text(self, html: str) -> str:
+        if not html:
+            return ""
+
+        text = html
+        text = re.sub(
+            r"<\s*script[^>]*>.*?<\s*/\s*script\s*>",
+            "",
+            text,
+            flags=re.I | re.S,
+        )
+        text = re.sub(
+            r"<\s*style[^>]*>.*?<\s*/\s*style\s*>",
+            "",
+            text,
+            flags=re.I | re.S,
+        )
+
+        # Preserve links as: label (url)
+        link_pattern = re.compile(
+            r"<\s*a\b[^>]*?href\s*=\s*(['\"])(.*?)\1[^>]*>(.*?)<\s*/\s*a\s*>",
+            flags=re.I | re.S,
+        )
+
+        def link_repl(match: re.Match) -> str:
+            href = (match.group(2) or "").strip()
+            label_html = match.group(3) or ""
+            label = re.sub(r"<[^>]+>", "", label_html)
+            label = unescape(label).strip()
+            if not label:
+                return href
+            if label == href:
+                return href
+            return f"{label} ({href})"
+
+        text = link_pattern.sub(link_repl, text)
+
+        # Basic block separators
+        text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.I)
+        text = re.sub(r"<\s*/\s*p\s*>", "\n\n", text, flags=re.I)
+        text = re.sub(r"<\s*/\s*div\s*>", "\n", text, flags=re.I)
+
+        # Drop remaining tags.
+        text = re.sub(r"<[^>]+>", "", text)
+        text = unescape(text)
+
+        # Normalize whitespace.
+        text = re.sub(r"\r\n?", "\n", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        return text.strip()
+
+    def _normalize_recipients(
+        self,
+        recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
+    ) -> list[str | tuple[str, str]]:
+        if recipients is None:
+            return []
+        if isinstance(recipients, (str, tuple)):
+            return [recipients]
+        return list(recipients)
+
+    def _normalize_cc(
+        self,
+        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
+    ) -> list[str | tuple[str, str]]:
+        if cc is None:
+            return []
+        if isinstance(cc, (str, tuple)):
+            return [cc]
+        return list(cc)
+
     def _build_message(
         self,
         sender: str | tuple[str, str],
@@ -101,19 +186,15 @@ class EmailSender:
         recipients: list[str | tuple[str, str]],
         subject: str,
         body: str,
-        cc: str | tuple[str, str] | list[str | tuple[str, str]] | None,
+        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
         attachments: Sequence[str | tuple[str, bytes]] | None
     ) -> tuple[MIMEMultipart, str, Sequence[str]]:
         """
         Method to build the message object and return it
         along with from_addr and to_addrs.
         """
-        if cc is None:
-            cc = []
-        if attachments is None:
-            attachments = []
-
-        cc_list = [cc] if isinstance(cc, str) or isinstance(cc, tuple) else cc
+        attachments = attachments or []
+        cc_list = self._normalize_cc(cc)
 
         to_headers = recipients + cc_list
 
@@ -121,7 +202,7 @@ class EmailSender:
             if not self._check_address_header(addr):
                 raise ValueError(f"Invalid email address: {addr}")
 
-        msg = MIMEMultipart()
+        msg = MIMEMultipart("mixed")
         msg["From"] = formataddr(sender) if isinstance(sender, tuple) \
             else sender
 
@@ -143,51 +224,43 @@ class EmailSender:
 
         msg["Subject"] = subject or ""
 
-        body_part = MIMEText(body, "html") \
-            if body and "<html>" in body.lower() \
-            else MIMEText(body or " ", "plain")
-
-        if body_part.get_content_subtype() == "html":
-            plain_text = html2text.html2text(body)
-            msg.attach(MIMEText(plain_text, "plain"))
-
-        msg.attach(body_part)
+        if self._is_html(body):
+            alt = MIMEMultipart("alternative")
+            alt.attach(MIMEText(self._html_to_text(body), "plain", "utf-8"))
+            alt.attach(MIMEText(body, "html", "utf-8"))
+            msg.attach(alt)
+        else:
+            msg.attach(MIMEText(body or "", "plain", "utf-8"))
 
         for att in attachments:
             if isinstance(att, str):
                 # If value in attachments is a string,
                 # treat it as a file path
                 with open(att, "rb") as f:
-                    part = MIMEBase("application", "octet-stream")
-                    part.set_payload(f.read())
-                encoders.encode_base64(part)
-                filename = os.path.basename(att)
-                part.add_header(
-                    "Content-Disposition",
-                    f'attachment; filename="{filename}"'
-                )
-                msg.attach(part)
+                    filename = os.path.basename(att)
+                    content = f.read()
             elif (isinstance(att, tuple)
                     and len(att) == 2
                     and isinstance(att[0], str)
-                    and isinstance(att[1], bytes)):
+                    and isinstance(att[1], (bytes, bytearray, memoryview))):
                 # If value in attachments is
                 # a tuple of (filename, content)
                 # then only 'bytes' content is supported
-                filename, content = att
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(content)
-                encoders.encode_base64(part)
-                part.add_header(
-                    "Content-Disposition",
-                    f'attachment; filename="{filename}"'
-                )
-                msg.attach(part)
+                filename, content = att[0], bytes(att[1])
             else:
                 raise ValueError(
                     "Attachments must be file paths "
                     "or (filename, content) tuples."
                 )
+
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(content)
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f'attachment; filename="{filename}"'
+            )
+            msg.attach(part)
         from_addr = sender[1] if isinstance(sender, tuple) else sender
         to_addrs = [
             addr[1] if isinstance(addr, tuple) else addr
@@ -203,7 +276,7 @@ class EmailSender:
         reply_to: str | tuple[str, str] = "",
         subject: str = "",
         body: str = "",
-        cc: str | list[str | tuple[str, str]] | None = None,
+        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
         """
@@ -216,7 +289,13 @@ class EmailSender:
             port=self._smtp_port,
             timeout=60
         ) as server:
-            server.starttls()
+            server.ehlo()
+            try:
+                server.starttls()
+                server.ehlo()
+            except smtplib.SMTPException:
+                # STARTTLS may be unsupported on some port 25 setups.
+                pass
             if self.sender_email and self._sender_password:
                 if sender:
                     raise ValueError(
@@ -231,14 +310,14 @@ class EmailSender:
 
             sender = sender or self.sender or self.sender_email
 
-            if not sender or not recipients and not cc:
-                raise ValueError(
-                    "A sender and at least one recipient "
-                    "(recipients or cc) must be specified."
-                )
+            if not sender:
+                raise ValueError("A sender must be specified.")
 
-            recipients_list = [recipients] if isinstance(recipients, str) \
-                else recipients
+            recipients_list = self._normalize_recipients(recipients)
+            if not recipients_list and not cc:
+                raise ValueError(
+                    "At least one recipient (recipients or cc) must be specified."
+                )
 
             msg, from_addr, to_addrs = self._build_message(
                 sender=sender,
@@ -260,10 +339,10 @@ class EmailSender:
         self,
         sender: str = "",
         reply_to: str | tuple[str, str] | None = None,
-        recipients: str | Sequence[str] | None = None,
+        recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
         subject: str = "",
         body: str = "",
-        cc: str | Sequence[str] | None = None,
+        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
         """
@@ -272,23 +351,21 @@ class EmailSender:
         if sender_email and sender_password were provided in the constructor.
         """
         import aiosmtplib
-        if self.sender_email and self._sender_password:
-            if sender:
-                raise ValueError(
-                    "Cannot specify sender when using "
-                    "authenticated email sending."
-                )
+        if self.sender_email and self._sender_password and sender:
+            raise ValueError(
+                "Cannot specify sender when using authenticated email sending."
+            )
 
         sender = sender or self.sender or self.sender_email
 
-        if not sender or not recipients and not cc:
-            raise ValueError(
-                "A sender and at least one recipient "
-                "(recipients or cc) must be specified."
-            )
+        if not sender:
+            raise ValueError("A sender must be specified.")
 
-        recipients_list = [recipients] if isinstance(recipients, str) \
-            else recipients
+        recipients_list = self._normalize_recipients(recipients)
+        if not recipients_list and not cc:
+            raise ValueError(
+                "At least one recipient (recipients or cc) must be specified."
+            )
 
         msg, from_addr, to_addrs = self._build_message(
             sender=sender,
@@ -300,11 +377,11 @@ class EmailSender:
             attachments=attachments
         )
 
-        smtp_kwargs = dict(
-            hostname=self._smtp_server,
-            port=self._smtp_port,
-            start_tls=True,
-        )
+        smtp_kwargs: dict[str, object] = {
+            "hostname": self._smtp_server,
+            "port": self._smtp_port,
+            "start_tls": True,
+        }
 
         if self.sender_email and self._sender_password:
             smtp_kwargs["username"] = self.sender_email

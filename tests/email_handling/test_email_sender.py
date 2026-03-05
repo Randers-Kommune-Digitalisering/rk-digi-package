@@ -1,6 +1,7 @@
 import sys
 import types
 import pytest
+import email as email_module
 from rkdigi.email_handling import EmailSender
 from unittest.mock import patch
 
@@ -210,10 +211,13 @@ def test_build_message_only_html_body():
             cc=None,
             attachments=None
         )
-        assert msg.get_payload()[0].get_content_subtype() == 'plain'
-        assert msg.get_payload()[0].get_payload() == 'HTML Body\n\n'
-        assert msg.get_payload()[1].get_content_subtype() == 'html'
-        assert msg.get_payload()[1].get_payload() == \
+        assert msg.get_payload()[0].get_content_subtype() == 'alternative'
+
+        alt = msg.get_payload()[0]
+        assert alt.get_payload()[0].get_content_subtype() == 'plain'
+        assert alt.get_payload()[0].get_payload(decode=True).decode('utf-8') == 'HTML Body'
+        assert alt.get_payload()[1].get_content_subtype() == 'html'
+        assert alt.get_payload()[1].get_payload(decode=True).decode('utf-8') == \
             '<html><body>HTML Body</body></html>'
 
 
@@ -238,7 +242,13 @@ def test_send_email_basic():
         assert 'to1@example.com' in args[1]
         assert 'to2@example.com' in args[1]
         assert 'Test Subject' in args[2]
-        assert 'Test Body' in args[2]
+        parsed = email_module.message_from_string(args[2])
+        plain_parts = [
+            p for p in parsed.walk()
+            if p.get_content_type() == 'text/plain' and p.get_content_disposition() != 'attachment'
+        ]
+        assert plain_parts
+        assert plain_parts[0].get_payload(decode=True).decode('utf-8').strip() == 'Test Body'
 
 
 def test_send_email_authenticated():
@@ -268,7 +278,13 @@ def test_send_email_authenticated():
         assert 'auth@example.com' in args[0]
         assert 'to@example.com' in args[1]
         assert 'Auth Subject' in args[2]
-        assert 'Auth Body' in args[2]
+        parsed = email_module.message_from_string(args[2])
+        plain_parts = [
+            p for p in parsed.walk()
+            if p.get_content_type() == 'text/plain' and p.get_content_disposition() != 'attachment'
+        ]
+        assert plain_parts
+        assert plain_parts[0].get_payload(decode=True).decode('utf-8').strip() == 'Auth Body'
 
 
 def test_send_email_fail_with_double_sender():
@@ -308,7 +324,7 @@ def test_send_email_no_sender_and_recipients():
         # Test missing sender
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='A sender must be specified'
         ):
             sender.send_email(
                 sender='',
@@ -320,7 +336,7 @@ def test_send_email_no_sender_and_recipients():
         # Test missing recipients
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='At least one recipient'
         ):
             sender.send_email(
                 sender='from@example.com',
@@ -516,7 +532,7 @@ async def test_send_email_async_no_sender_and_recipients():
         # Test missing sender
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='A sender must be specified'
         ):
             await sender.send_email_async(
                 sender='',
@@ -527,7 +543,7 @@ async def test_send_email_async_no_sender_and_recipients():
         # Test missing recipients
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='At least one recipient'
         ):
             await sender.send_email_async(
                 sender='from@example.com',
