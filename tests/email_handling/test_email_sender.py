@@ -252,6 +252,18 @@ def test_send_email_basic():
         assert plain_parts[0].get_payload(decode=True).decode('utf-8').strip() == 'Test Body'
 
 
+def test_send_email_recipients_tuple_of_emails_is_rejected():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        with pytest.raises(ValueError, match='Invalid address tuple'):
+            sender.send_email(
+                sender='from@example.com',
+                recipients=('to1@example.com', 'to2@example.com'),
+                subject='Tuple Recipients',
+                body='Body'
+            )
+
+
 def test_send_email_starttls_smtpexception_falls_back_to_plaintext():
     with patch('smtplib.SMTP') as mock_smtp:
         instance = mock_smtp.return_value.__enter__.return_value
@@ -472,6 +484,19 @@ def test_send_email_only_cc():
         msg_str = args[2]
         assert "To:" not in msg_str
         assert "Cc: cc1@example.com, cc2@example.com" in msg_str
+
+
+def test_send_email_cc_tuple_of_emails_is_rejected():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        with pytest.raises(ValueError, match='Invalid address tuple'):
+            sender.send_email(
+                sender='from@example.com',
+                recipients=['to@example.com'],
+                cc=('cc1@example.com', 'cc2@example.com'),
+                subject='Bad CC Tuple',
+                body='Body'
+            )
 
 
 # Mock aiosmtplib

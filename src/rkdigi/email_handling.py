@@ -4,7 +4,7 @@ import asyncio
 import imaplib
 import smtplib
 from html import unescape
-from typing import Sequence
+from typing import Sequence, TypeGuard
 import email as email_module
 from email import encoders
 from email.utils import formataddr
@@ -68,19 +68,54 @@ class EmailSender:
                 f"{self._smtp_server}:{self._smtp_port}"
             )
 
-    def _check_address_header(self, address: str | tuple[str, str]) -> bool:
+    def _is_address_tuple(self, value: object) -> TypeGuard[tuple[str, str]]:
+        """
+        Method to check if the provided value is a valid address tuple of the form (name, email).
+
+        Tuples are reserved for a *single named address*.
+        Multiple recipients must be provided as a non-tuple sequence (e.g. list).
+
+        To prevent common misuse, we reject tuples where both elements look like
+        emails (e.g. ("a@x", "b@y")); pass ["a@x", "b@y"] instead.
+
+        :param value: The value to check.
+        :return: True if value is a valid (display_name, email) tuple, False otherwise.
+        """
+        if not (isinstance(value, tuple) and len(value) == 2):
+            return False
+
+        name, email = value
+        if not (isinstance(name, str) and isinstance(email, str)):
+            return False
+
+        if "@" not in email:
+            return False
+
+        # Disallow "name" that also looks like an email to avoid ambiguity.
+        if "@" in name:
+            return False
+
+        return True
+
+    def _check_address_header(self, address: str | tuple[str, str] | None) -> bool:
         """
         Method to check if the provided address is a valid address header.
+
+        :param address: The email address to check. Can be a string or a tuple of (display_name, email), for example:
+        - Simple email string: "user@example.com"
+        - Tuple of (display_name, email): ("John Doe", "john.doe@example.com")
+
+        :return: True if the address is valid, False otherwise.
         """
         if isinstance(address, str):
             return '@' in address
-        elif isinstance(address, tuple) and len(address) == 2:
-            return '@' in address[1]
+        elif self._is_address_tuple(address):
+            return True
         return False
 
     def _can_connect(self) -> bool:
         """
-        method to check if connection to
+        Method to check if connection to
         SMTP server can be established.
         """
         try:
@@ -95,6 +130,10 @@ class EmailSender:
             return False
 
     def _is_html(self, body: str) -> bool:
+        """
+        Method to check if the provided body is HTML.
+        Returns True if the body contains HTML tags, False otherwise.
+        """
         if not body:
             return False
         lower = body.lower()
@@ -108,6 +147,10 @@ class EmailSender:
         )
 
     def _html_to_text(self, html: str) -> str:
+        """
+        Method to convert HTML content to plain text.
+        Returns the plain text representation of the HTML content.
+        """
         if not html:
             return ""
 
@@ -159,25 +202,34 @@ class EmailSender:
         text = re.sub(r"[ \t]{2,}", " ", text)
         return text.strip()
 
+    def _normalize_addresses(
+        self,
+        addresses: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
+    ) -> list[str | tuple[str, str]]:
+        if addresses is None:
+            return []
+        if isinstance(addresses, str):
+            return [addresses]
+        if isinstance(addresses, tuple):
+            if self._is_address_tuple(addresses):
+                return [addresses]
+            raise ValueError(
+                "Invalid address tuple. Use (name, email) for a single named address, "
+                "or use a list/other non-tuple sequence for multiple recipients."
+            )
+        return list(addresses)
+
     def _normalize_recipients(
         self,
         recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
     ) -> list[str | tuple[str, str]]:
-        if recipients is None:
-            return []
-        if isinstance(recipients, (str, tuple)):
-            return [recipients]
-        return list(recipients)
+        return self._normalize_addresses(recipients)
 
     def _normalize_cc(
         self,
         cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
     ) -> list[str | tuple[str, str]]:
-        if cc is None:
-            return []
-        if isinstance(cc, (str, tuple)):
-            return [cc]
-        return list(cc)
+        return self._normalize_addresses(cc)
 
     def _build_message(
         self,
@@ -271,7 +323,7 @@ class EmailSender:
 
     def send_email(
         self,
-        recipients: str | tuple[str, str] | list[str | tuple[str, str]],
+        recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]],
         sender: str | tuple[str, str] = "",
         reply_to: str | tuple[str, str] = "",
         subject: str = "",
@@ -465,6 +517,7 @@ class EmailReader:
         """
         Retrieve emails from the specified mailbox
         matching the search criteria.
+
         param mailbox: The mailbox to search in (e.g., "INBOX")
         param criteria: The IMAP search criteria (e.g., "ALL", "UNSEEN")
         param modifiers: Optional IMAP flags to set on the emails
