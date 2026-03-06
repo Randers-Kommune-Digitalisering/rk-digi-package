@@ -517,7 +517,7 @@ class FakeSMTP:
     async def login(self, *args, **kwargs):
         return None
 
-    async def send_message(self, *args, **kwargs):
+    async def send_message(self, message, *, sender=None, recipients=None, **kwargs):
         return {}
 
 
@@ -547,7 +547,7 @@ def test_send_email_async_starttls_not_supported_falls_back_to_plaintext():
                 raise StartTLSNotSupported("no STARTTLS")
             return None
 
-        async def send_message(self, *args, **kwargs):
+        async def send_message(self, message, *, sender=None, recipients=None, **kwargs):
             self.send_message_called = True
             return {}
 

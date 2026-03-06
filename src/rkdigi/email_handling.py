@@ -449,8 +449,8 @@ class EmailSender:
 
             await server.send_message(
                 msg,
-                from_addr=from_addr,
-                to_addrs=to_addrs
+                sender=from_addr,
+                recipients=to_addrs
             )
 
 
