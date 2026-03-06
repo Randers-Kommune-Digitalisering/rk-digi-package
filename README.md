@@ -139,6 +139,14 @@ db_manager = DatabaseManager(
 ### EmailSender (sync + async)
 `EmailSender` is for sending emails from a SMTP server. It takes both just email addresses (string) and address headers with names (tuple), like; `('Name', 'name@email.com)`.
 Emails with html body will get a plain text body added as well, fallback for email clients not supporting html. Attachments can be given either as a path to a file (string) or as filename and data in bytes (tuple).
+
+Address formats:
+- A single address can be given as a string email: `'to@example.com'`
+- A single named address can be given as a tuple: `('Name', 'to@example.com')`
+- Multiple recipients/CC must be given as a **non-tuple sequence** (typically a list), e.g. `['a@example.com', 'b@example.com']` or `[('A', 'a@example.com'), 'b@example.com']`
+
+Note: A 2-tuple is reserved for the named-address form `(name, email)`. Passing a tuple of two emails like `('a@example.com', 'b@example.com')` is not supported; use a list instead.
+
 #### Sync example
 ```python
 from rkdigi import EmailSender
@@ -148,7 +156,7 @@ email_sender.send_email(
 	sender=('No Reply', 'noreply@example.com'),
 	reply_to='real@example.com',
 	recipients='to@example.com',
-	cc=[('CC', 'cc@example.com')]
+	cc=[('CC', 'cc@example.com')],
 	subject='Test Subject',
 	body='<html><body>Test Body</body></html>',
 	attachments=[('myfile.txt', b'<somebytes>')]
