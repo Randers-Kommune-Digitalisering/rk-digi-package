@@ -239,7 +239,7 @@ class EmailSender:
         subject: str,
         body: str,
         cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
-        attachments: Sequence[str | tuple[str, bytes]] | None
+        attachments: Sequence[str | tuple[str, bytes | bytearray | memoryview]] | None
     ) -> tuple[MIMEMultipart, str, Sequence[str]]:
         """
         Method to build the message object and return it
@@ -390,7 +390,7 @@ class EmailSender:
 
     async def send_email_async(
         self,
-        sender: str = "",
+        sender: str | tuple[str, str] = "",
         reply_to: str | tuple[str, str] | None = None,
         recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
         subject: str = "",
