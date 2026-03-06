@@ -295,9 +295,9 @@ class EmailSender:
                     and len(att) == 2
                     and isinstance(att[0], str)
                     and isinstance(att[1], (bytes, bytearray, memoryview))):
-                # If value in attachments is
-                # a tuple of (filename, content)
-                # then only 'bytes' content is supported
+                # If value in attachments is a tuple of (filename, content),
+                # content may be bytes, bytearray, or memoryview and will be
+                # normalized to bytes before attaching.
                 filename, content = att[0], bytes(att[1])
             else:
                 raise ValueError(
