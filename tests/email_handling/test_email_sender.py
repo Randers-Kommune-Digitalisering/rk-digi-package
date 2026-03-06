@@ -1,6 +1,7 @@
 import sys
 import types
 import pytest
+import smtplib
 import email as email_module
 from rkdigi.email_handling import EmailSender
 from unittest.mock import patch
@@ -249,6 +250,25 @@ def test_send_email_basic():
         ]
         assert plain_parts
         assert plain_parts[0].get_payload(decode=True).decode('utf-8').strip() == 'Test Body'
+
+
+def test_send_email_starttls_smtpexception_falls_back_to_plaintext():
+    with patch('smtplib.SMTP') as mock_smtp:
+        instance = mock_smtp.return_value.__enter__.return_value
+        instance.starttls.side_effect = smtplib.SMTPException('STARTTLS failed')
+        instance.sendmail.return_value = {}
+        instance.ehlo.return_value = None
+
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        sender.send_email(
+            sender='from@example.com',
+            recipients=['to@example.com'],
+            subject='Test Subject',
+            body='Test Body'
+        )
+
+        instance.starttls.assert_called_once()
+        instance.sendmail.assert_called_once()
 
 
 def test_send_email_authenticated():
