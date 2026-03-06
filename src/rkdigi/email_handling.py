@@ -333,7 +333,7 @@ class EmailSender:
     ) -> None:
         """
         Sends an email with the specified parameters (sync).
-        Will try to authenticate with the SMTP server
+        Will try to authenticate with the SMTP server.
         if sender_email and sender_password were provided in the constructor.
         """
         with smtplib.SMTP(
@@ -347,6 +347,7 @@ class EmailSender:
                 server.ehlo()
             except smtplib.SMTPException:
                 # STARTTLS may be unsupported on some port 25 setups.
+                # Fallback to unencrypted connection if STARTTLS fails or is not supported.
                 pass
             if self.sender_email and self._sender_password:
                 if sender:
@@ -399,7 +400,7 @@ class EmailSender:
     ) -> None:
         """
         Sends an email with the specified parameters (async).
-        Will try to authenticate with the SMTP server
+        Will try to authenticate with the SMTP server.
         if sender_email and sender_password were provided in the constructor.
         """
         import aiosmtplib
@@ -429,17 +430,23 @@ class EmailSender:
             attachments=attachments
         )
 
-        smtp_kwargs: dict[str, object] = {
-            "hostname": self._smtp_server,
-            "port": self._smtp_port,
-            "start_tls": True,
-        }
+        async with aiosmtplib.SMTP(
+            hostname=self._smtp_server,
+            port=self._smtp_port,
+            timeout=60,
+        ) as server:
+            await server.ehlo()
+            try:
+                await server.starttls()
+                await server.ehlo()
+            except (aiosmtplib.errors.SMTPNotSupported, aiosmtplib.errors.SMTPException):
+                # STARTTLS may be unsupported on some port 25 setups.
+                # Fallback to unencrypted connection if STARTTLS fails or is not supported.
+                pass
 
-        if self.sender_email and self._sender_password:
-            smtp_kwargs["username"] = self.sender_email
-            smtp_kwargs["password"] = self._sender_password
+            if self.sender_email and self._sender_password:
+                await server.login(self.sender_email, self._sender_password)
 
-        async with aiosmtplib.SMTP(**smtp_kwargs) as server:
             await server.send_message(
                 msg,
                 from_addr=from_addr,

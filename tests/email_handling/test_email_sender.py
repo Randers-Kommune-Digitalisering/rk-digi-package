@@ -2,6 +2,7 @@ import sys
 import types
 import pytest
 import smtplib
+import asyncio
 import email as email_module
 from rkdigi.email_handling import EmailSender
 from unittest.mock import patch
@@ -507,6 +508,15 @@ class FakeSMTP:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return None
 
+    async def ehlo(self, *args, **kwargs):
+        return None
+
+    async def starttls(self, *args, **kwargs):
+        return None
+
+    async def login(self, *args, **kwargs):
+        return None
+
     async def send_message(self, *args, **kwargs):
         return {}
 
@@ -514,7 +524,60 @@ class FakeSMTP:
 fake_aiosmtplib = types.ModuleType("aiosmtplib")
 fake_aiosmtplib.SMTP = lambda *args, **kwargs: FakeSMTP()
 
+fake_aiosmtplib_errors = types.SimpleNamespace(
+    SMTPException=Exception,
+    SMTPNotSupported=Exception,
+)
+fake_aiosmtplib.errors = fake_aiosmtplib_errors
+
 sys.modules["aiosmtplib"] = fake_aiosmtplib
+
+
+def test_send_email_async_starttls_not_supported_falls_back_to_plaintext():
+    class StartTLSNotSupported(Exception):
+        pass
+
+    class FakeSMTPStartTLSFails(FakeSMTP):
+        def __init__(self, *, starttls_fails: bool):
+            self._starttls_fails = starttls_fails
+            self.send_message_called = False
+
+        async def starttls(self, *args, **kwargs):
+            if self._starttls_fails:
+                raise StartTLSNotSupported("no STARTTLS")
+            return None
+
+        async def send_message(self, *args, **kwargs):
+            self.send_message_called = True
+            return {}
+
+    created: list[FakeSMTPStartTLSFails] = []
+
+    def smtp_factory(*args, **kwargs):
+        inst = FakeSMTPStartTLSFails(starttls_fails=True)
+        created.append(inst)
+        return inst
+
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(EmailSender, '_can_connect', lambda self: True)
+
+        # Patch the pre-injected fake module.
+        fake_aiosmtplib.SMTP = smtp_factory
+        fake_aiosmtplib.errors.SMTPNotSupported = StartTLSNotSupported
+        fake_aiosmtplib.errors.SMTPException = Exception
+
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        asyncio.run(
+            sender.send_email_async(
+                sender='from@example.com',
+                recipients=['to@example.com'],
+                subject='Test Subject',
+                body='Test Body',
+            )
+        )
+
+    assert created, "Expected FakeSMTP instance to be created"
+    assert created[0].send_message_called is True
 
 
 # Async tests for EmailSender.send_email_async
