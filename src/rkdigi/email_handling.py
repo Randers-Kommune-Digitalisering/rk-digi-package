@@ -416,7 +416,8 @@ class EmailReader:
         self,
         mailbox: str = "INBOX",
         criteria: str = "ALL",
-        modifiers: str | None = None,
+        set_flags: str | None = "\\Seen",
+        del_flags: str | None = None,
         max: int | None = None
     ) -> tuple[list[EmailMessage], list[bytes]]:
         """
@@ -425,8 +426,10 @@ class EmailReader:
 
         param mailbox: The mailbox to search in (e.g., "INBOX")
         param criteria: The IMAP search criteria (e.g., "ALL", "UNSEEN")
-        param modifiers: Optional IMAP flags to set on the emails
-            after fetching (e.g., "\\Seen" to mark as read)
+        param set_flags: Optional IMAP flags to set on the emails
+            after fetching (e.g., "\\Seen" to mark as seen)
+        param del_flags: Optional IMAP flags to remove from the emails
+            after fetching (e.g., "\\Seen" to mark as unseen)
         param max: Optional maximum number of emails to fetch (all if None)
         """
         with imaplib.IMAP4(
@@ -452,8 +455,10 @@ class EmailReader:
                     failed_to_fetch_ids.append(email_id)
                     continue
                 emails.append(email_module.message_from_bytes(msg_data[0][1]))
-                if modifiers:
-                    server.store(email_id, '+FLAGS', modifiers)
+                if set_flags:
+                    server.store(email_id, '+FLAGS', set_flags)
+                if del_flags:
+                    server.store(email_id, '-FLAGS', del_flags)
             return emails, failed_to_fetch_ids
 
     async def list_mailboxes_async(self) -> list[str]:
@@ -469,7 +474,8 @@ class EmailReader:
         self,
         mailbox: str = "INBOX",
         search_criteria: str = "ALL",
-        modifiers: str | None = "\\Seen",
+        set_flags: str | None = "\\Seen",
+        del_flags: str | None = None,
         max: int | None = None
     ) -> tuple[list[EmailMessage], list[bytes]]:
         """
@@ -480,7 +486,8 @@ class EmailReader:
             return self.get_emails(
                 mailbox=mailbox,
                 criteria=search_criteria,
-                modifiers=modifiers,
+                set_flags=set_flags,
+                del_flags=del_flags,
                 max=max
             )
 
