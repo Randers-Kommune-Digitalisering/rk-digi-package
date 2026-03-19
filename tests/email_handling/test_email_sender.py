@@ -104,30 +104,30 @@ def test_can_connect_false():
         assert sender._can_connect() is False
 
 
-def test_check_address_header_valid():
+def test_is_valid_address_valid():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address='example@example.com'
         ) is True
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address=('Example', 'example@example.com')
         ) is True
 
 
-def test_check_address_header_invalid():
+def test_is_valid_address_invalid():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address='example-example.com'
         ) is False
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address=('Example', 'example-example.com')
         ) is False
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address=('Example',)
         ) is False
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             None
         ) is False
 
@@ -142,6 +142,29 @@ def test_build_message_valid_address():
                 'valid3@example.com',
                 ('Valid Recipient', 'valid4@example.com')
             ],
+            subject='Test',
+            body='Body',
+            cc=None,
+            attachments=None
+        )
+
+        assert 'valid1@example.com' == from_addr
+        assert 'valid2@example.com' == msg['Reply-To']
+        assert isinstance(to_addrs, list) and \
+            all(isinstance(addr, str) for addr in to_addrs)
+        assert 'valid3@example.com' in to_addrs
+        assert 'valid4@example.com' in to_addrs
+
+def test_build_message_valid_tuple_addresses():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        msg, from_addr, to_addrs = sender._build_message(
+            sender=('Valid Sender', 'valid1@example.com'),
+            reply_to='valid2@example.com',
+            recipients=(
+                'valid3@example.com',
+                ('Valid Recipient', 'valid4@example.com')
+            ),
             subject='Test',
             body='Body',
             cc=None,
@@ -253,16 +276,22 @@ def test_send_email_basic():
         assert plain_parts[0].get_payload(decode=True).decode('utf-8').strip() == 'Test Body'
 
 
-def test_send_email_recipients_tuple_of_emails_is_rejected():
-    with patch('smtplib.SMTP'):
+def test_send_email_recipients_name_email_tuple():
+    with patch('smtplib.SMTP') as mock_smtp:
+        instance = mock_smtp.return_value.__enter__.return_value
+        instance.ehlo.return_value = None
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        with pytest.raises(ValueError, match='Invalid address tuple'):
-            sender.send_email(
-                sender='from@example.com',
-                recipients=('to1@example.com', 'to2@example.com'),
-                subject='Tuple Recipients',
-                body='Body'
-            )
+        sender.send_email(
+            sender='from@example.com',
+            recipients=('To', 'to@example.com'),
+            subject='Tuple Recipients',
+            body='Body'
+        )
+        instance.sendmail.assert_called_once()
+        args = tuple(instance.sendmail.call_args.kwargs.values())
+        msg_str = args[2]
+        parsed = email_module.message_from_string(msg_str)
+        assert parsed['To'] == 'To <to@example.com>'
 
 
 def test_send_email_starttls_smtpexception_falls_back_to_plaintext():
@@ -485,19 +514,6 @@ def test_send_email_only_cc():
         msg_str = args[2]
         assert "To:" not in msg_str
         assert "Cc: cc1@example.com, cc2@example.com" in msg_str
-
-
-def test_send_email_cc_tuple_of_emails_is_rejected():
-    with patch('smtplib.SMTP'):
-        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        with pytest.raises(ValueError, match='Invalid address tuple'):
-            sender.send_email(
-                sender='from@example.com',
-                recipients=['to@example.com'],
-                cc=('cc1@example.com', 'cc2@example.com'),
-                subject='Bad CC Tuple',
-                body='Body'
-            )
 
 
 # Mock aiosmtplib

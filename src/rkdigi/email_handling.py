@@ -3,15 +3,16 @@ import re
 import asyncio
 import imaplib
 import smtplib
-from html import unescape
-from typing import Sequence, TypeGuard
+from typing import Sequence
 import email as email_module
 from email import encoders
-from email.utils import formataddr
+from email.utils import formataddr, parseaddr
 from email.message import EmailMessage
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+from bs4 import BeautifulSoup
 
 
 class EmailSender:
@@ -37,7 +38,7 @@ class EmailSender:
         self.sender_email = sender_email
         self._sender_password = sender_password
         if sender_email:
-            if self._check_address_header(sender_email):
+            if self._is_valid_address(sender_email):
                 if sender_name:
                     self.sender = (sender_name, sender_email)
                 else:
@@ -50,7 +51,7 @@ class EmailSender:
             self.sender = ""
 
         if reply_to_email:
-            if self._check_address_header(reply_to_email):
+            if self._is_valid_address(reply_to_email):
                 if reply_to_name:
                     self.reply_to = (reply_to_name, reply_to_email)
                 else:
@@ -68,49 +69,30 @@ class EmailSender:
                 f"{self._smtp_server}:{self._smtp_port}"
             )
 
-    def _is_address_tuple(self, value: object) -> TypeGuard[tuple[str, str]]:
+    def _is_valid_address(self, address) -> bool:
         """
-        Method to check if the provided value is a valid address tuple of the form (name, email).
+        Validate an address header.
 
-        Tuples are reserved for a *single named address*.
-        Multiple recipients must be provided as a non-tuple sequence (e.g. list).
-
-        To prevent common misuse, we reject tuples where both elements look like
-        emails (e.g. ("a@x", "b@y")); pass ["a@x", "b@y"] instead.
-
-        :param value: The value to check.
-        :return: True if value is a valid (display_name, email) tuple, False otherwise.
+        Accepts either:
+        • a (name, email) tuple, or
+        • a plain email string.
         """
-        if not (isinstance(value, tuple) and len(value) == 2):
-            return False
-
-        name, email = value
-        if not (isinstance(name, str) and isinstance(email, str)):
-            return False
-
-        if "@" not in email:
-            return False
-
-        # Disallow "name" that also looks like an email to avoid ambiguity.
-        if "@" in name:
-            return False
-
-        return True
-
-    def _check_address_header(self, address: str | tuple[str, str] | None) -> bool:
-        """
-        Method to check if the provided address is a valid address header.
-
-        :param address: The email address to check. Can be a string or a tuple of (display_name, email), for example:
-        - Simple email string: "user@example.com"
-        - Tuple of (display_name, email): ("John Doe", "john.doe@example.com")
-
-        :return: True if the address is valid, False otherwise.
-        """
+        # Case 1: address is a plain string containing an email
         if isinstance(address, str):
-            return '@' in address
-        elif self._is_address_tuple(address):
+            parsed = parseaddr(address)[1]
+            return "@" in address and parsed == address
+
+        # Case 2: address is a (name, email) tuple
+        if (
+            isinstance(address, tuple)
+            and len(address) == 2
+            and isinstance(address[1], str)
+            and "@" in address[1]
+            and "@" not in address[0]
+            and parseaddr(formataddr(address))[1] == address[1]
+        ):
             return True
+
         return False
 
     def _can_connect(self) -> bool:
@@ -129,113 +111,27 @@ class EmailSender:
         except Exception:
             return False
 
-    def _is_html(self, body: str) -> bool:
-        """
-        Method to check if the provided body is HTML.
-        Returns True if the body contains HTML tags, False otherwise.
-        """
-        if not body:
-            return False
-        lower = body.lower()
-        if "<html" in lower:
-            return True
-        return bool(
-            re.search(
-                r"<\s*(p|br|div|span|table|a|body|head|style|strong|em|ul|ol|li)\b",
-                lower,
-            )
-        )
-
-    def _html_to_text(self, html: str) -> str:
-        """
-        Method to convert HTML content to plain text.
-        Returns the plain text representation of the HTML content.
-        """
-        if not html:
-            return ""
-
-        text = html
-        text = re.sub(
-            r"<\s*script[^>]*>.*?<\s*/\s*script\s*>",
-            "",
-            text,
-            flags=re.I | re.S,
-        )
-        text = re.sub(
-            r"<\s*style[^>]*>.*?<\s*/\s*style\s*>",
-            "",
-            text,
-            flags=re.I | re.S,
-        )
-
-        # Preserve links as: label (url)
-        link_pattern = re.compile(
-            r"<\s*a\b[^>]*?href\s*=\s*(['\"])(.*?)\1[^>]*>(.*?)<\s*/\s*a\s*>",
-            flags=re.I | re.S,
-        )
-
-        def link_repl(match: re.Match) -> str:
-            href = (match.group(2) or "").strip()
-            label_html = match.group(3) or ""
-            label = re.sub(r"<[^>]+>", "", label_html)
-            label = unescape(label).strip()
-            if not label:
-                return href
-            if label == href:
-                return href
-            return f"{label} ({href})"
-
-        text = link_pattern.sub(link_repl, text)
-
-        # Basic block separators
-        text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.I)
-        text = re.sub(r"<\s*/\s*p\s*>", "\n\n", text, flags=re.I)
-        text = re.sub(r"<\s*/\s*div\s*>", "\n", text, flags=re.I)
-
-        # Drop remaining tags.
-        text = re.sub(r"<[^>]+>", "", text)
-        text = unescape(text)
-
-        # Normalize whitespace.
-        text = re.sub(r"\r\n?", "\n", text)
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        text = re.sub(r"[ \t]{2,}", " ", text)
-        return text.strip()
-
     def _normalize_addresses(
         self,
         addresses: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
     ) -> list[str | tuple[str, str]]:
         if addresses is None:
             return []
-        if isinstance(addresses, str):
+        if isinstance(addresses, str) and self._is_valid_address(addresses):
             return [addresses]
-        if isinstance(addresses, tuple):
-            if self._is_address_tuple(addresses):
-                return [addresses]
-            raise ValueError(
-                "Invalid address tuple. Use (name, email) for a single named address, "
-                "or use a list/other non-tuple sequence for multiple recipients."
-            )
+        elif isinstance(addresses, tuple) and self._is_valid_address(addresses):
+            return [addresses]
+        else:
+            for addr in addresses:
+                if not self._is_valid_address(addr):
+                    raise ValueError(f"Invalid email address: {addr}")
         return list(addresses)
-
-    def _normalize_recipients(
-        self,
-        recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
-    ) -> list[str | tuple[str, str]]:
-        return self._normalize_addresses(recipients)
-
-    def _normalize_cc(
-        self,
-        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
-    ) -> list[str | tuple[str, str]]:
-        return self._normalize_addresses(cc)
 
     def _build_message(
         self,
         sender: str | tuple[str, str],
         reply_to: str | tuple[str, str],
-        recipients: list[str | tuple[str, str]],
+        recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]],
         subject: str,
         body: str,
         cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
@@ -246,12 +142,13 @@ class EmailSender:
         along with from_addr and to_addrs.
         """
         attachments = attachments or []
-        cc_list = self._normalize_cc(cc)
+        cc_list = self._normalize_addresses(cc)
+        recipients_list = self._normalize_addresses(recipients)
 
-        to_headers = recipients + cc_list
+        to_headers = recipients_list + cc_list
 
         for addr in [sender] + to_headers + ([reply_to] if reply_to else []):
-            if not self._check_address_header(addr):
+            if not self._is_valid_address(addr):
                 raise ValueError(f"Invalid email address: {addr}")
 
         msg = MIMEMultipart("mixed")
@@ -265,7 +162,7 @@ class EmailSender:
         if recipients:
             msg["To"] = ", ".join(
                 formataddr(addr) if isinstance(addr, tuple) else addr
-                for addr in recipients
+                for addr in recipients_list
             )
 
         if cc_list:
@@ -276,9 +173,11 @@ class EmailSender:
 
         msg["Subject"] = subject or ""
 
-        if self._is_html(body):
+        soup = BeautifulSoup(body, "html.parser")
+
+        if soup.find():  # If there are any HTML tags, treat as HTML email
             alt = MIMEMultipart("alternative")
-            alt.attach(MIMEText(self._html_to_text(body), "plain", "utf-8"))
+            alt.attach(MIMEText(soup.get_text(separator="\n", strip=True), "plain", "utf-8"))
             alt.attach(MIMEText(body, "html", "utf-8"))
             msg.attach(alt)
         else:
@@ -366,8 +265,7 @@ class EmailSender:
             if not sender:
                 raise ValueError("A sender must be specified.")
 
-            recipients_list = self._normalize_recipients(recipients)
-            if not recipients_list and not cc:
+            if not recipients and not cc:
                 raise ValueError(
                     "At least one recipient (recipients or cc) must be specified."
                 )
@@ -375,7 +273,7 @@ class EmailSender:
             msg, from_addr, to_addrs = self._build_message(
                 sender=sender,
                 reply_to=reply_to or self.reply_to,
-                recipients=recipients_list,
+                recipients=recipients,
                 subject=subject,
                 body=body,
                 cc=cc,
@@ -414,7 +312,7 @@ class EmailSender:
         if not sender:
             raise ValueError("A sender must be specified.")
 
-        recipients_list = self._normalize_recipients(recipients)
+        recipients_list = self._normalize_addresses(recipients)
         if not recipients_list and not cc:
             raise ValueError(
                 "At least one recipient (recipients or cc) must be specified."
