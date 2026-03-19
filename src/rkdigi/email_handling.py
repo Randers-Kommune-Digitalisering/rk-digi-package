@@ -1,5 +1,4 @@
 import os
-import re
 import asyncio
 import imaplib
 import smtplib
@@ -113,13 +112,17 @@ class EmailSender:
 
     def _normalize_addresses(
         self,
-        addresses: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
+        addresses: str | tuple[str, str]
+            | Sequence[str | tuple[str, str]] | None,
     ) -> list[str | tuple[str, str]]:
         if addresses is None:
             return []
         if isinstance(addresses, str) and self._is_valid_address(addresses):
             return [addresses]
-        elif isinstance(addresses, tuple) and self._is_valid_address(addresses):
+        elif (
+            isinstance(addresses, tuple)
+            and self._is_valid_address(addresses)
+        ):
             return [addresses]
         else:
             for addr in addresses:
@@ -135,7 +138,8 @@ class EmailSender:
         subject: str,
         body: str,
         cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None,
-        attachments: Sequence[str | tuple[str, bytes | bytearray | memoryview]] | None
+        attachments: Sequence[
+            str | tuple[str, bytes | bytearray | memoryview]] | None
     ) -> tuple[MIMEMultipart, str, Sequence[str]]:
         """
         Method to build the message object and return it
@@ -177,7 +181,8 @@ class EmailSender:
 
         if soup.find():  # If there are any HTML tags, treat as HTML email
             alt = MIMEMultipart("alternative")
-            alt.attach(MIMEText(soup.get_text(separator="\n", strip=True), "plain", "utf-8"))
+            plain_text = soup.get_text(separator="\n", strip=True)
+            alt.attach(MIMEText(plain_text, "plain", "utf-8"))
             alt.attach(MIMEText(body, "html", "utf-8"))
             msg.attach(alt)
         else:
@@ -227,7 +232,8 @@ class EmailSender:
         reply_to: str | tuple[str, str] = "",
         subject: str = "",
         body: str = "",
-        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
+        cc: str | tuple[str, str]
+        | Sequence[str | tuple[str, str]] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
         """
@@ -246,7 +252,8 @@ class EmailSender:
                 server.ehlo()
             except smtplib.SMTPException:
                 # STARTTLS may be unsupported on some port 25 setups.
-                # Fallback to unencrypted connection if STARTTLS fails or is not supported.
+                # Fallback to unencrypted connection
+                # if STARTTLS fails or is not supported.
                 pass
             if self.sender_email and self._sender_password:
                 if sender:
@@ -267,7 +274,8 @@ class EmailSender:
 
             if not recipients and not cc:
                 raise ValueError(
-                    "At least one recipient (recipients or cc) must be specified."
+                    "At least one recipient (recipients or cc)"
+                    " must be specified."
                 )
 
             msg, from_addr, to_addrs = self._build_message(
@@ -290,10 +298,12 @@ class EmailSender:
         self,
         sender: str | tuple[str, str] = "",
         reply_to: str | tuple[str, str] | None = None,
-        recipients: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
+        recipients: str | tuple[str, str]
+        | Sequence[str | tuple[str, str]] | None = None,
         subject: str = "",
         body: str = "",
-        cc: str | tuple[str, str] | Sequence[str | tuple[str, str]] | None = None,
+        cc: str | tuple[str, str]
+        | Sequence[str | tuple[str, str]] | None = None,
         attachments: Sequence[str | tuple[str, bytes]] | None = None
     ) -> None:
         """
@@ -337,9 +347,13 @@ class EmailSender:
             try:
                 await server.starttls()
                 await server.ehlo()
-            except (aiosmtplib.errors.SMTPNotSupported, aiosmtplib.errors.SMTPException):
+            except (
+                aiosmtplib.errors.SMTPNotSupported,
+                aiosmtplib.errors.SMTPException
+            ):
                 # STARTTLS may be unsupported on some port 25 setups.
-                # Fallback to unencrypted connection if STARTTLS fails or is not supported.
+                # Fallback to unencrypted connection
+                # if STARTTLS fails or is not supported.
                 pass
 
             if self.sender_email and self._sender_password:
