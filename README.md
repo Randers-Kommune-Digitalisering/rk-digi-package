@@ -174,7 +174,7 @@ asyncio.run(send_email_func())
 ### EmailReader (sync + async)
 `EmailReader` is for reading emails from an IMAP server. The class provides a method for getting a list of mailboxes/folders: `list_mailboxes` / `list_mailboxes_async`.
 
-Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `modifiers` parameter is the flags will be set for the returned emails. If set to `None` no flags will be set (this is the default). Multiple flags must be seperated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects, the other with ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
+Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `set_flags` and `del_flags` parameters are the flags will be set or removed for the returned emails. If set to `None` no flags will be set or removed (this is the default). Multiple flags must be seperated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects, the other with ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
 #### Sync example
 ```python
 from rkdigi import EmailReader
@@ -188,7 +188,8 @@ folders = reader.list_mailboxes()
 emails, failed_email_ids = reader.get_emails(
 	mailbox=folder[0],
 	criteria="UNSEEN",
-	modifiers=None
+	set_flags=None,
+	del_flags="\\Flagged"
 )
 first_email = emails[0]
 if not first_email.is_multipart():
@@ -212,7 +213,7 @@ async def get_emails():
 	emails, failed_email_ids = await reader.get_emails_async(
 		mailbox=folders[0],
 		criteria="ALL",
-		modifiers="\\Seen",
+		set_flags="\\Seen",
 		max=10
 	)
 asyncio.run(get_emails())
