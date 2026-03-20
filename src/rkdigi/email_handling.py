@@ -2,8 +2,11 @@ import os
 import asyncio
 import imaplib
 import smtplib
+import re
 from typing import Sequence
 import email as email_module
+from email import policy
+from email.parser import BytesParser
 from email import encoders
 from email.utils import formataddr, parseaddr
 from email.message import EmailMessage
@@ -12,6 +15,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 from bs4 import BeautifulSoup
+
+UID_REGEX = re.compile(rb"\bUID (?P<uid>\d+)\b")
 
 
 class EmailSender:
@@ -438,6 +443,9 @@ class EmailReader:
         Retrieve emails from the specified mailbox
         matching the search criteria.
 
+        Each returned email will include an extra header:
+            - X-IMAP-UID: the message UID (string)
+
         param mailbox: The mailbox to search in (e.g., "INBOX")
         param criteria: The IMAP search criteria (e.g., "ALL", "UNSEEN")
         param set_flags: Optional IMAP flags to set on the emails
@@ -461,18 +469,42 @@ class EmailReader:
                 email_ids = all_ids[:max]
             else:
                 email_ids = all_ids
+
             emails = []
             failed_to_fetch_ids = []
             for email_id in email_ids:
-                status, msg_data = server.fetch(email_id, "(RFC822)")
+                status, msg_data = server.fetch(email_id, "(UID RFC822)")
                 if status != "OK":
                     failed_to_fetch_ids.append(email_id)
                     continue
-                emails.append(email_module.message_from_bytes(msg_data[0][1]))
+
+                uid: str | None = None
+                raw_bytes: bytes | None = None
+                for part in msg_data:
+                    if not isinstance(part, tuple) or len(part) != 2:
+                        continue
+                    meta, raw = part
+                    if isinstance(meta, bytes):
+                        m = UID_REGEX.search(meta)
+                        if m:
+                            uid = m.group("uid").decode("ascii", errors="replace")
+                    if isinstance(raw, (bytes, bytearray)):
+                        raw_bytes = bytes(raw)
+                        break
+
+                if uid is None or raw_bytes is None:
+                    failed_to_fetch_ids.append(email_id)
+                    continue
+
+                msg = BytesParser(policy=policy.default).parsebytes(raw_bytes)
+                msg["X-IMAP-UID"] = uid
+                emails.append(msg)
+
                 if set_flags:
                     server.store(email_id, '+FLAGS', set_flags)
                 if del_flags:
                     server.store(email_id, '-FLAGS', del_flags)
+
             return emails, failed_to_fetch_ids
 
     async def list_mailboxes_async(self) -> list[str]:
