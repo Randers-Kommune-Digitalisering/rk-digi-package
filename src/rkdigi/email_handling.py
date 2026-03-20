@@ -5,6 +5,8 @@ import smtplib
 import re
 from typing import Sequence
 import email as email_module
+from email import policy
+from email.parser import BytesParser
 from email import encoders
 from email.utils import formataddr, parseaddr
 from email.message import EmailMessage
@@ -494,7 +496,7 @@ class EmailReader:
                     failed_to_fetch_ids.append(email_id)
                     continue
 
-                msg = email_module.message_from_bytes(raw_bytes)
+                msg = BytesParser(policy=policy.default).parsebytes(raw_bytes)
                 msg["X-IMAP-UID"] = uid
                 emails.append(msg)
 
