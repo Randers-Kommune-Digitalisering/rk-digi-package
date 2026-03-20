@@ -144,7 +144,8 @@ def test_get_emails_success(monkeypatch):
 
         def fetch(self, email_id, _):
             msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags): pass
 
@@ -159,6 +160,7 @@ def test_get_emails_success(monkeypatch):
     emails, failed = reader.get_emails()
     assert len(emails) == 2
     assert all(email["Subject"] == "Test" for email in emails)
+    assert all(email["X-IMAP-UID"] in {"1", "2"} for email in emails)
     assert failed == []
 
 
@@ -179,7 +181,8 @@ def test_get_emails_partial_fail(monkeypatch):
             if email_id == b'2':
                 return ("NO", [])
             msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags): pass
 
@@ -235,7 +238,8 @@ def test_get_emails_with_max(monkeypatch):
         def fetch(self, email_id, _):
             msg = f"From: foo@bar.com\nSubject: \
                 Test {email_id.decode()}\n\nBody".encode()
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags): pass
 
@@ -269,7 +273,8 @@ def test_get_emails_with_flags(monkeypatch):
         def fetch(self, email_id, _):
             msg = f"From: foo@bar.com\nSubject: \
                 Test {email_id.decode()}\n\nBody".encode()
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags):
             assert command == '+FLAGS'
@@ -305,7 +310,8 @@ def test_get_emails_with_removing_flags(monkeypatch):
         def fetch(self, email_id, _):
             msg = f"From: foo@bar.com\nSubject: \
                 Test {email_id.decode()}\n\nBody".encode()
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags):
             assert command == '-FLAGS'
@@ -369,7 +375,8 @@ async def test_get_emails_async(monkeypatch):
 
         def fetch(self, email_id, _):
             msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags):
             pass
@@ -385,6 +392,7 @@ async def test_get_emails_async(monkeypatch):
     emails, failed = await reader.get_emails_async()
     assert len(emails) == 2
     assert all(email["Subject"] == "Test" for email in emails)
+    assert all(email["X-IMAP-UID"] in {"1", "2"} for email in emails)
     assert failed == []
 
 
@@ -404,7 +412,8 @@ async def test_get_emails_async_with_max(monkeypatch):
         def fetch(self, email_id, _):
             msg = f"From: foo@bar.com\nSubject: \
                 Test {email_id.decode()}\n\nBody".encode()
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags):
             pass
@@ -440,7 +449,8 @@ async def test_get_emails_async_with_flags(monkeypatch):
         def fetch(self, email_id, _):
             msg = f"From: foo@bar.com\nSubject: \
                 Test {email_id.decode()}\n\nBody".encode()
-            return ("OK", [(None, msg)])
+            meta = f"{email_id.decode()} (UID {email_id.decode()} RFC822".encode()
+            return ("OK", [(meta, msg)])
 
         def store(self, email_id, command, flags):
             assert command == '+FLAGS'
