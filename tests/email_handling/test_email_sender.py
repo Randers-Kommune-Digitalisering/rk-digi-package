@@ -1,8 +1,11 @@
 import sys
 import types
 import pytest
+import smtplib
+import asyncio
+import email as email_module
 from rkdigi.email_handling import EmailSender
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 
 def test_init_with_server_and_port():
@@ -101,30 +104,30 @@ def test_can_connect_false():
         assert sender._can_connect() is False
 
 
-def test_check_address_header_valid():
+def test_is_valid_address_valid():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address='example@example.com'
         ) is True
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address=('Example', 'example@example.com')
         ) is True
 
 
-def test_check_address_header_invalid():
+def test_is_valid_address_invalid():
     with patch('smtplib.SMTP'):
         sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address='example-example.com'
         ) is False
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address=('Example', 'example-example.com')
         ) is False
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             address=('Example',)
         ) is False
-        assert sender._check_address_header(
+        assert sender._is_valid_address(
             None
         ) is False
 
@@ -139,6 +142,30 @@ def test_build_message_valid_address():
                 'valid3@example.com',
                 ('Valid Recipient', 'valid4@example.com')
             ],
+            subject='Test',
+            body='Body',
+            cc=None,
+            attachments=None
+        )
+
+        assert 'valid1@example.com' == from_addr
+        assert 'valid2@example.com' == msg['Reply-To']
+        assert isinstance(to_addrs, list) and \
+            all(isinstance(addr, str) for addr in to_addrs)
+        assert 'valid3@example.com' in to_addrs
+        assert 'valid4@example.com' in to_addrs
+
+
+def test_build_message_valid_tuple_addresses():
+    with patch('smtplib.SMTP'):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        msg, from_addr, to_addrs = sender._build_message(
+            sender=('Valid Sender', 'valid1@example.com'),
+            reply_to='valid2@example.com',
+            recipients=(
+                'valid3@example.com',
+                ('Valid Recipient', 'valid4@example.com')
+            ),
             subject='Test',
             body='Body',
             cc=None,
@@ -210,11 +237,15 @@ def test_build_message_only_html_body():
             cc=None,
             attachments=None
         )
-        assert msg.get_payload()[0].get_content_subtype() == 'plain'
-        assert msg.get_payload()[0].get_payload() == 'HTML Body\n\n'
-        assert msg.get_payload()[1].get_content_subtype() == 'html'
-        assert msg.get_payload()[1].get_payload() == \
-            '<html><body>HTML Body</body></html>'
+        assert msg.get_payload()[0].get_content_subtype() == 'alternative'
+
+        alt = msg.get_payload()[0]
+        assert alt.get_payload()[0].get_content_subtype() == 'plain'
+        assert alt.get_payload()[0].get_payload(decode=True) \
+            .decode('utf-8') == 'HTML Body'
+        assert alt.get_payload()[1].get_content_subtype() == 'html'
+        assert alt.get_payload()[1].get_payload(decode=True) \
+            .decode('utf-8') == '<html><body>HTML Body</body></html>'
 
 
 def test_send_email_basic():
@@ -238,7 +269,53 @@ def test_send_email_basic():
         assert 'to1@example.com' in args[1]
         assert 'to2@example.com' in args[1]
         assert 'Test Subject' in args[2]
-        assert 'Test Body' in args[2]
+        parsed = email_module.message_from_string(args[2])
+        plain_parts = [
+            p for p in parsed.walk()
+            if p.get_content_type() == 'text/plain'
+            and p.get_content_disposition() != 'attachment'
+        ]
+        assert plain_parts
+        assert plain_parts[0].get_payload(decode=True) \
+            .decode('utf-8').strip() == 'Test Body'
+
+
+def test_send_email_recipients_name_email_tuple():
+    with patch('smtplib.SMTP') as mock_smtp:
+        instance = mock_smtp.return_value.__enter__.return_value
+        instance.ehlo.return_value = None
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        sender.send_email(
+            sender='from@example.com',
+            recipients=('To', 'to@example.com'),
+            subject='Tuple Recipients',
+            body='Body'
+        )
+        instance.sendmail.assert_called_once()
+        args = tuple(instance.sendmail.call_args.kwargs.values())
+        msg_str = args[2]
+        parsed = email_module.message_from_string(msg_str)
+        assert parsed['To'] == 'To <to@example.com>'
+
+
+def test_send_email_starttls_smtpexception_falls_back_to_plaintext():
+    with patch('smtplib.SMTP') as mock_smtp:
+        instance = mock_smtp.return_value.__enter__.return_value
+        instance.starttls.side_effect = \
+            smtplib.SMTPException('STARTTLS failed')
+        instance.sendmail.return_value = {}
+        instance.ehlo.return_value = None
+
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        sender.send_email(
+            sender='from@example.com',
+            recipients=['to@example.com'],
+            subject='Test Subject',
+            body='Test Body'
+        )
+
+        instance.starttls.assert_called_once()
+        instance.sendmail.assert_called_once()
 
 
 def test_send_email_authenticated():
@@ -268,7 +345,15 @@ def test_send_email_authenticated():
         assert 'auth@example.com' in args[0]
         assert 'to@example.com' in args[1]
         assert 'Auth Subject' in args[2]
-        assert 'Auth Body' in args[2]
+        parsed = email_module.message_from_string(args[2])
+        plain_parts = [
+            p for p in parsed.walk()
+            if p.get_content_type() == 'text/plain'
+            and p.get_content_disposition() != 'attachment'
+        ]
+        assert plain_parts
+        assert plain_parts[0].get_payload(decode=True) \
+            .decode('utf-8').strip() == 'Auth Body'
 
 
 def test_send_email_fail_with_double_sender():
@@ -308,7 +393,7 @@ def test_send_email_no_sender_and_recipients():
         # Test missing sender
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='A sender must be specified'
         ):
             sender.send_email(
                 sender='',
@@ -320,7 +405,7 @@ def test_send_email_no_sender_and_recipients():
         # Test missing recipients
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='At least one recipient'
         ):
             sender.send_email(
                 sender='from@example.com',
@@ -446,14 +531,90 @@ class FakeSMTP:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return None
 
-    async def send_message(self, *args, **kwargs):
+    async def ehlo(self, *args, **kwargs):
+        return None
+
+    async def starttls(self, *args, **kwargs):
+        return None
+
+    async def login(self, *args, **kwargs):
+        return None
+
+    async def send_message(
+            self,
+            message,
+            *,
+            sender=None,
+            recipients=None,
+            **kwargs
+    ):
         return {}
 
 
 fake_aiosmtplib = types.ModuleType("aiosmtplib")
 fake_aiosmtplib.SMTP = lambda *args, **kwargs: FakeSMTP()
 
+fake_aiosmtplib_errors = types.SimpleNamespace(
+    SMTPException=Exception,
+    SMTPNotSupported=Exception,
+)
+fake_aiosmtplib.errors = fake_aiosmtplib_errors
+
 sys.modules["aiosmtplib"] = fake_aiosmtplib
+
+
+def test_send_email_async_starttls_not_supported_falls_back_to_plaintext():
+    class StartTLSNotSupported(Exception):
+        pass
+
+    class FakeSMTPStartTLSFails(FakeSMTP):
+        def __init__(self, *, starttls_fails: bool):
+            self._starttls_fails = starttls_fails
+            self.send_message_called = False
+
+        async def starttls(self, *args, **kwargs):
+            if self._starttls_fails:
+                raise StartTLSNotSupported("no STARTTLS")
+            return None
+
+        async def send_message(
+                self,
+                message,
+                *,
+                sender=None,
+                recipients=None,
+                **kwargs
+        ):
+            self.send_message_called = True
+            return {}
+
+    created: list[FakeSMTPStartTLSFails] = []
+
+    def smtp_factory(*args, **kwargs):
+        inst = FakeSMTPStartTLSFails(starttls_fails=True)
+        created.append(inst)
+        return inst
+
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(EmailSender, '_can_connect', lambda self: True)
+
+        # Patch the pre-injected fake module.
+        fake_aiosmtplib.SMTP = smtp_factory
+        fake_aiosmtplib.errors.SMTPNotSupported = StartTLSNotSupported
+        fake_aiosmtplib.errors.SMTPException = Exception
+
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        asyncio.run(
+            sender.send_email_async(
+                sender='from@example.com',
+                recipients=['to@example.com'],
+                subject='Test Subject',
+                body='Test Body',
+            )
+        )
+
+    assert created, "Expected FakeSMTP instance to be created"
+    assert created[0].send_message_called is True
 
 
 # Async tests for EmailSender.send_email_async
@@ -516,7 +677,7 @@ async def test_send_email_async_no_sender_and_recipients():
         # Test missing sender
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='A sender must be specified'
         ):
             await sender.send_email_async(
                 sender='',
@@ -527,7 +688,7 @@ async def test_send_email_async_no_sender_and_recipients():
         # Test missing recipients
         with pytest.raises(
             ValueError,
-            match='A sender and at least one recipient'
+            match='At least one recipient'
         ):
             await sender.send_email_async(
                 sender='from@example.com',
@@ -618,3 +779,25 @@ async def test_send_email_async_only_cc():
             subject='CC Only',
             body='Body'
         )
+
+
+@pytest.mark.asyncio
+async def test_send_email_async_ehlo_called():
+    smtp_mock = AsyncMock()
+    smtp_mock.__aenter__.return_value = smtp_mock
+    smtp_mock.ehlo = AsyncMock()
+    smtp_mock.starttls = AsyncMock()
+    smtp_mock.send_message = AsyncMock()
+    with patch('aiosmtplib.SMTP', return_value=smtp_mock), \
+         patch(
+            'rkdigi.email_handling.EmailSender._can_connect',
+            return_value=True
+    ):
+        sender = EmailSender(smtp_server='smtp.example.com', smtp_port=25)
+        await sender.send_email_async(
+            sender='from@example.com',
+            recipients='to@example.com',
+            subject='Async Subject',
+            body='Async Body'
+        )
+        smtp_mock.ehlo.assert_called()

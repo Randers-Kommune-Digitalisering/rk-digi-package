@@ -1,5 +1,5 @@
 
-[![PyPI version](https://img.shields.io/pypi/v/rk-digi?label=PyPI)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
+[![PyPI version](https://img.shields.io/pypi/v/rk-digi?label=PyPI&cacheSeconds=3600)](https://pypi.org/project/rk-digi/) [![codecov](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package/branch/main/graph/badge.svg)](https://codecov.io/gh/Randers-Kommune-Digitalisering/rk-digi-package)
 # RK-digitalisering-package
 Python package with useful stuff for projects in Randers Kommune - Digitalisering.
 ## Classes
@@ -139,6 +139,14 @@ db_manager = DatabaseManager(
 ### EmailSender (sync + async)
 `EmailSender` is for sending emails from a SMTP server. It takes both just email addresses (string) and address headers with names (tuple), like; `('Name', 'name@email.com)`.
 Emails with html body will get a plain text body added as well, fallback for email clients not supporting html. Attachments can be given either as a path to a file (string) or as filename and data in bytes (tuple).
+
+Address formats:
+- A single address can be given as a string email: `'to@example.com'`
+- A single named address can be given as a tuple: `('Name', 'to@example.com')`
+- Multiple recipients/CC must be given as a sequence (typically a list), e.g. `['a@example.com', 'b@example.com']`, `[('A', 'a@example.com'), 'b@example.com']` or `('a@example.com', ('B', 'b@example.com'))`
+
+Note: A 2-tuple is reserved for the named-address form `(name, email)`. Passing a tuple of two emails like `('a@example.com', 'b@example.com')` is not supported; use a list instead.
+
 #### Sync example
 ```python
 from rkdigi import EmailSender
@@ -148,7 +156,7 @@ email_sender.send_email(
 	sender=('No Reply', 'noreply@example.com'),
 	reply_to='real@example.com',
 	recipients='to@example.com',
-	cc=[('CC', 'cc@example.com')]
+	cc=[('CC', 'cc@example.com')],
 	subject='Test Subject',
 	body='<html><body>Test Body</body></html>',
 	attachments=[('myfile.txt', b'<somebytes>')]
@@ -174,13 +182,10 @@ asyncio.run(send_email_func())
 ### EmailReader (sync + async)
 `EmailReader` is for reading emails from an IMAP server. The class provides a method for getting a list of mailboxes/folders: `list_mailboxes` / `list_mailboxes_async`.
 
-<<<<<<< Updated upstream
-Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `modifiers` parameter is the flags will be set for the returned emails. If set to `None` no flags will be set (this is the default). Multiple flags must be seperated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects, the other with ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
-=======
 Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `set_flags` and `del_flags` parameters are the flags will be set or removed for the returned emails. If set to `None` no flags will be set or removed (this is the default). Multiple flags must be seperated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects (with the uid in attribute uid e.g. `email_obj.uid`), the other with ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
 
 A single email can be fetched by uid using `get_email_by_uid` / `get_email_by_uid_async`, it takes the parameters `uid` and `mailbox` and returns a [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) object with uid attribute set.
->>>>>>> Stashed changes
+
 #### Sync example
 ```python
 from rkdigi import EmailReader
@@ -194,7 +199,8 @@ folders = reader.list_mailboxes()
 emails, failed_email_ids = reader.get_emails(
 	mailbox=folder[0],
 	criteria="UNSEEN",
-	modifiers=None
+	set_flags=None,
+	del_flags="\\Flagged"
 )
 first_email = emails[0]
 if not first_email.is_multipart():
@@ -220,7 +226,7 @@ async def get_emails():
 	emails, failed_email_ids = await reader.get_emails_async(
 		mailbox=folders[0],
 		criteria="ALL",
-		modifiers="\\Seen",
+		set_flags="\\Seen",
 		max=10
 	)
 asyncio.run(get_emails())
