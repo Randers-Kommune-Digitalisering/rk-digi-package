@@ -3,7 +3,8 @@ import asyncio
 import imaplib
 import smtplib
 from typing import Sequence
-import email as email_module
+from email.parser import BytesParser
+from email import policy
 from email import encoders
 from email.utils import formataddr
 from email.message import EmailMessage
@@ -382,6 +383,7 @@ class EmailReader:
         self,
         mailbox: str = "INBOX",
         criteria: str = "ALL",
+<<<<<<< Updated upstream
         modifiers: str | None = None,
         max: int | None = None
     ) -> tuple[list[EmailMessage], list[bytes]]:
@@ -392,7 +394,28 @@ class EmailReader:
         param criteria: The IMAP search criteria (e.g., "ALL", "UNSEEN")
         param modifiers: Optional IMAP flags to set on the emails
             after fetching (e.g., "\\Seen" to mark as read)
+=======
+        set_flags: str | None = "\\Seen",
+        del_flags: str | None = None,
+        max: int | None = None,
+        low_to_high: bool = True
+    ) -> tuple[list[EmailMessage], list[bytes]]:
+        """
+        Retrieve emails from the specified
+        mailbox matching the search criteria.
+
+        param mailbox: The mailbox to search in (e.g., "INBOX")
+        param criteria: The IMAP search criteria (e.g., "ALL", "UNSEEN")
+        param set_flags: Optional IMAP flags to set on the emails
+            after fetching (e.g., "\\Seen" to mark as seen)
+        param del_flags: Optional IMAP flags to remove
+            from the emails after fetching
+>>>>>>> Stashed changes
         param max: Optional maximum number of emails to fetch (all if None)
+        param low_to_high: Whether to fetch emails
+            from low to high UID (default is True)
+        Returns a tuple: (list of EmailMessage objects with .uid attribute,
+            list of UIDs that failed to fetch)
         """
         with imaplib.IMAP4(
             host=self._imap_server,
@@ -401,25 +424,68 @@ class EmailReader:
             server.starttls()
             server.login(self.email, self.password)
             server.select(mailbox)
-            status, data = server.search(None, criteria)
+            status, data = server.uid('search', None, criteria)
             if status != "OK":
                 raise ConnectionError("Failed to search emails.")
-            all_ids = data[0].split()
+            all_uids = data[0].split()
+            if not low_to_high:
+                all_uids = list(reversed(all_uids))
+
             if max is not None:
-                email_ids = all_ids[:max]
+                email_uids = all_uids[:max]
             else:
-                email_ids = all_ids
+                email_uids = all_uids
+
             emails = []
-            failed_to_fetch_ids = []
-            for email_id in email_ids:
-                status, msg_data = server.fetch(email_id, "(RFC822)")
+            failed_to_fetch_uids = []
+            for uid in email_uids:
+                status, msg_data = server.uid('fetch', uid, '(RFC822)')
                 if status != "OK":
-                    failed_to_fetch_ids.append(email_id)
+                    failed_to_fetch_uids.append(uid)
                     continue
+<<<<<<< Updated upstream
                 emails.append(email_module.message_from_bytes(msg_data[0][1]))
                 if modifiers:
                     server.store(email_id, '+FLAGS', modifiers)
             return emails, failed_to_fetch_ids
+=======
+                msg = BytesParser(
+                    policy=policy.default
+                ).parsebytes(msg_data[0][1])
+                msg.uid = uid
+                emails.append(msg)
+                if set_flags:
+                    server.uid('store', uid, '+FLAGS', set_flags)
+                if del_flags:
+                    server.uid('store', uid, '-FLAGS', del_flags)
+            return emails, failed_to_fetch_uids
+
+    def get_email_by_uid(
+            self,
+            uid: bytes,
+            mailbox: str = "INBOX"
+    ) -> EmailMessage:
+        """
+        Fetch a single email by its UID.
+
+        param uid: The UID of the email to fetch (as bytes)
+        param mailbox: The mailbox to fetch the email from (default is "INBOX")
+        Returns an EmailMessage object with an added .uid attribute.
+        """
+        with imaplib.IMAP4(
+            host=self._imap_server,
+            port=self._imap_port
+        ) as server:
+            server.starttls()
+            server.login(self.email, self.password)
+            server.select(mailbox)
+            status, msg_data = server.uid('fetch', uid, '(RFC822)')
+            if status != "OK":
+                raise ConnectionError(f"Failed to fetch email with UID {uid}.")
+            msg = BytesParser(policy=policy.default).parsebytes(msg_data[0][1])
+            msg.uid = uid
+            return msg
+>>>>>>> Stashed changes
 
     async def list_mailboxes_async(self) -> list[str]:
         """
@@ -448,6 +514,23 @@ class EmailReader:
                 modifiers=modifiers,
                 max=max
             )
+
+        return await asyncio.to_thread(_sync)
+
+    async def get_email_by_uid_async(
+        self,
+        uid: bytes,
+        mailbox: str = "INBOX"
+    ) -> EmailMessage:
+        """
+        Fetch a single email by its UID. (Async)
+
+        param uid: The UID of the email to fetch (as bytes)
+        param mailbox: The mailbox to fetch the email from (default is "INBOX")
+        Returns an EmailMessage object with an added .uid attribute.
+        """
+        def _sync():
+            return self.get_email_by_uid(uid=uid, mailbox=mailbox)
 
         return await asyncio.to_thread(_sync)
 

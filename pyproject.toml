@@ -13,7 +13,7 @@ Bug-Tracker = "https://github.com/Randers-Kommune-Digitalisering/rk-digi-package
 
 [project]
 name = "rk-digi"
-version = "1.1.0"
+version = "2.1.0"
 description = "Python package with useful stuff for projects in Randers Kommune - Digitalisering"
 authors = [
   { name = "Randers Kommune Digitalisering", email = "digitalisering@randers.dk" }
