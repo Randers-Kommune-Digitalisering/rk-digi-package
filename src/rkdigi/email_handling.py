@@ -484,9 +484,19 @@ class EmailReader:
                 msg.uid = uid
                 emails.append(msg)
                 if set_flags:
-                    server.uid('store', uid, '+FLAGS', set_flags)
+                    status, _ = server.uid('store', uid, '+FLAGS', set_flags)
+                    if status != "OK":
+                        raise ConnectionError(
+                            f"Failed to set flags on email with UID {uid}. "
+                            "Might be a read-only mailbox."
+                        )
                 if del_flags:
-                    server.uid('store', uid, '-FLAGS', del_flags)
+                    status, _ = server.uid('store', uid, '-FLAGS', del_flags)
+                    if status != "OK":
+                        raise ConnectionError(
+                            f"Failed to remove flags on email with UID {uid}. "
+                            "Might be a read-only mailbox."
+                        )
             return emails, failed_to_fetch_uids
 
     def get_email_by_uid(

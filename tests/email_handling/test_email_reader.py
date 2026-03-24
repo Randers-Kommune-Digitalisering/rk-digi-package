@@ -145,10 +145,10 @@ def test_get_emails_success(monkeypatch):
             elif command == 'fetch':
                 msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
-                return ("NO", [])
-
-        def store(self, email_id, command, flags): pass
+                return ("OK", [])
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -179,10 +179,10 @@ def test_get_emails_partial_fail(monkeypatch):
             elif command == 'fetch' and args[0] in [b'1', b'3']:
                 msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
                 return ("NO", [])
-
-        def store(self, email_id, command, flags): pass
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -237,10 +237,10 @@ def test_get_emails_with_max(monkeypatch):
                 msg = f"From: foo@bar.com\nSubject: \
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
-                return ("NO", [])
-
-        def store(self, email_id, command, flags): pass
+                return ("OK", [])
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -273,10 +273,10 @@ def test_get_emails_with_reverse_order(monkeypatch):
                 msg = f"From: foo@bar.com\nSubject: \
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
-                return ("NO", [])
-
-        def store(self, email_id, command, flags): pass
+                return ("OK", [])
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -311,12 +311,10 @@ def test_get_emails_with_flags(monkeypatch):
                 msg = f"From: foo@bar.com\nSubject: \
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
-                return ("NO", [])
-
-        def store(self, email_id, command, flags):
-            assert command == '+FLAGS'
-            assert flags == "\\Seen"
+                return ("OK", [])
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -350,17 +348,15 @@ def test_get_emails_with_removing_flags(monkeypatch):
                 msg = f"From: foo@bar.com\nSubject: \
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
-                return ("NO", [])
+                return ("OK", [])
 
         def fetch(self, email_id, _):
             msg = f"From: foo@bar.com\nSubject: \
                 Test {email_id.decode()}\n\nBody".encode()
             return ("OK", [(None, msg)])
-
-        def store(self, email_id, command, flags):
-            assert command == '-FLAGS'
-            assert flags == "\\Flagged"
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -432,6 +428,70 @@ def test_get_email_by_uid_failure(monkeypatch):
             reader.get_email_by_uid(b'123')
 
 
+def test_set_flags_failure(monkeypatch):
+    class DummyIMAP:
+        def __init__(self, host, port): pass
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        def starttls(self): pass
+        def login(self, email, password): return ("OK", None)
+        def select(self, mailbox): return ("OK", None)
+
+        def uid(self, command, *args):
+            if command == 'search':
+                return ("OK", [b'1'])
+            elif command == 'fetch':
+                msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
+                return ("OK", [(None, msg)])
+            elif command == 'store' and args[1] == '+FLAGS':
+                return ("NO", [])
+            else:
+                return ("OK", [])
+
+    monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
+    with patch(ercc, return_value=True):
+        reader = EmailReader(
+            email=EMAIL,
+            password=PASSWORD,
+            imap_server=IMAP_SERVER,
+            imap_port=IMAP_PORT
+        )
+        with pytest.raises(ConnectionError):
+            reader.get_emails(set_flags="\\Seen", max=1)
+
+
+def test_del_flags_failure(monkeypatch):
+    class DummyIMAP:
+        def __init__(self, host, port): pass
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        def starttls(self): pass
+        def login(self, email, password): return ("OK", None)
+        def select(self, mailbox): return ("OK", None)
+
+        def uid(self, command, *args):
+            if command == 'search':
+                return ("OK", [b'1'])
+            elif command == 'fetch':
+                msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
+                return ("OK", [(None, msg)])
+            elif command == 'store' and args[1] == '-FLAGS':
+                return ("NO", [])
+            else:
+                return ("OK", [])
+
+    monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
+    with patch(ercc, return_value=True):
+        reader = EmailReader(
+            email=EMAIL,
+            password=PASSWORD,
+            imap_server=IMAP_SERVER,
+            imap_port=IMAP_PORT
+        )
+        with pytest.raises(ConnectionError):
+            reader.get_emails(del_flags="\\Seen", max=1)
+
+
 @pytest.mark.asyncio
 async def test_list_mailboxes_async(monkeypatch):
     class DummyIMAP:
@@ -472,11 +532,10 @@ async def test_get_emails_async(monkeypatch):
             elif command == 'fetch':
                 msg = b"From: foo@bar.com\nSubject: Test\n\nBody"
                 return ("OK", [(None, msg)])
+            elif command == 'store':
+                return ("OK", None)
             else:
-                return ("NO", [])
-
-        def store(self, email_id, command, flags):
-            pass
+                return ("OK", [])
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -509,9 +568,8 @@ async def test_get_emails_async_with_max(monkeypatch):
                 msg = f"From: foo@bar.com\nSubject: \
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
-
-        def store(self, email_id, command, flags):
-            pass
+            elif command == 'store':
+                return ("OK", None)
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
@@ -545,10 +603,8 @@ async def test_get_emails_async_with_flags(monkeypatch):
                 msg = f"From: foo@bar.com\nSubject: \
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
-
-        def store(self, email_id, command, flags):
-            assert command == '+FLAGS'
-            assert flags == "\\Seen"
+            elif command == 'store':
+                return ("OK", None)
 
     monkeypatch.setattr("imaplib.IMAP4", DummyIMAP)
     with patch(ercc, return_value=True):
