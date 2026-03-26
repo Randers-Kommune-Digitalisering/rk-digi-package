@@ -540,7 +540,8 @@ class EmailReader:
         criteria: str = "ALL",
         set_flags: str | None = "\\Seen",
         del_flags: str | None = None,
-        max: int | None = None
+        max: int | None = None,
+        low_to_high: bool = True
     ) -> tuple[list[EmailMessage], list[bytes]]:
         """
         Retrieve emails from the specified mailbox
@@ -552,7 +553,8 @@ class EmailReader:
                 criteria=criteria,
                 set_flags=set_flags,
                 del_flags=del_flags,
-                max=max
+                max=max,
+                low_to_high: bool = True
             )
 
         return await asyncio.to_thread(_sync)
