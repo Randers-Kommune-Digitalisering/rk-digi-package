@@ -554,7 +554,7 @@ class EmailReader:
                 set_flags=set_flags,
                 del_flags=del_flags,
                 max=max,
-                low_to_high: bool = True
+                low_to_high=low_to_high
             )
 
         return await asyncio.to_thread(_sync)
