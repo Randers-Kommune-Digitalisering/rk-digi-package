@@ -238,7 +238,7 @@ async def get_by_id():
 		imap_server='imap.example.com',
 		imap_port=143
 	)
-	email_by_id = await reader.get_email_by_uid(uid=b"1", mailbox="INBOX")
+	email_by_id = await reader.get_email_by_uid_async(uid=b"1", mailbox="INBOX")
 asyncio.run(get_by_id())
 ```
 ### EmailManager (sync + async)
