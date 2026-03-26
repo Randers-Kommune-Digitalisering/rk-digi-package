@@ -537,7 +537,7 @@ class EmailReader:
     async def get_emails_async(
         self,
         mailbox: str = "INBOX",
-        search_criteria: str = "ALL",
+        criteria: str = "ALL",
         set_flags: str | None = "\\Seen",
         del_flags: str | None = None,
         max: int | None = None
@@ -549,7 +549,7 @@ class EmailReader:
         def _sync():
             return self.get_emails(
                 mailbox=mailbox,
-                criteria=search_criteria,
+                criteria=criteria,
                 set_flags=set_flags,
                 del_flags=del_flags,
                 max=max
