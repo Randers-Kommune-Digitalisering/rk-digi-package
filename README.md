@@ -182,7 +182,10 @@ asyncio.run(send_email_func())
 ### EmailReader (sync + async)
 `EmailReader` is for reading emails from an IMAP server. The class provides a method for getting a list of mailboxes/folders: `list_mailboxes` / `list_mailboxes_async`.
 
-Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `set_flags` and `del_flags` parameters are the flags will be set or removed for the returned emails. If set to `None` no flags will be set or removed (this is the default). Multiple flags must be seperated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects, the other with ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
+Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `search_criteria` parameter will filter the emails in the mail box and follow IMAP RFC 3501, they can be found in the [SEARCH section](https://datatracker.ietf.org/doc/html/rfc3501.html#section-6.4.4). The `set_flags` and `del_flags` parameters are the flags will be set or removed for the returned emails. If set to `None` no flags will be set or removed (this is the default for `del_flags`, `\\Seen` is default for `set_flags`). Multiple flags must be separated by a space e.g. `"\\Seen \\Flagged"`. Documentation for flags which can be set can be found at [imap Enum Flag](https://docs.rs/imap/latest/imap/types/enum.Flag.html). Two lists are returned, one with the email data as [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) objects (with the uid in attribute uid e.g. `email_obj.uid`), the other with a list of ids for emails which could not be fetched. The ids are bytes e.g. `[b'1', b'2']`.
+
+A single email can be fetched by uid using `get_email_by_uid` / `get_email_by_uid_async`, it takes the parameters `uid` and `mailbox` and returns a [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) object with uid attribute set.
+
 #### Sync example
 ```python
 from rkdigi import EmailReader
@@ -204,6 +207,8 @@ if not first_email.is_multipart():
 	charset = first_email.get_content_charset()
 	body = first_email.get_payload(decode=True)
 	normal_string_body = body.decode(charset)
+
+email_by_id = reader.get_email_by_uid(uid=b"1", mailbox="INBOX")
 ```
 #### Async example
 ```python
@@ -225,6 +230,16 @@ async def get_emails():
 		max=10
 	)
 asyncio.run(get_emails())
+
+async def get_by_id():
+	reader = EmailReader(
+		email='example@email.com',
+		password='password',
+		imap_server='imap.example.com',
+		imap_port=143
+	)
+	email_by_id = await reader.get_email_by_uid_async(uid=b"1", mailbox="INBOX")
+asyncio.run(get_by_id())
 ```
 ### EmailManager (sync + async)
 `EmailManager` just initiate 
