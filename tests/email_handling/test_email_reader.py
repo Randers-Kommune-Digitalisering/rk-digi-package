@@ -312,6 +312,11 @@ def test_get_emails_with_flags(monkeypatch):
                     Test {args[0].decode()}\n\nBody".encode()
                 return ("OK", [(None, msg)])
             elif command == 'store':
+                # Expect: uid, '+FLAGS', '\\Seen'
+                assert len(args) >= 3
+                uid_arg, flags_cmd, flags_value = args[:3]
+                assert flags_cmd == '+FLAGS'
+                assert flags_value == "\\Seen"
                 return ("OK", None)
             else:
                 return ("OK", [])
