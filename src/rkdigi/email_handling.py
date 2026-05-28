@@ -525,6 +525,43 @@ class EmailReader:
             msg.uid = uid
             return msg
 
+    def delete_email_by_uid(
+        self,
+        uid: bytes,
+        mailbox: str = "INBOX",
+        expunge: bool = True,
+    ) -> None:
+        """
+        Delete an email by IMAP UID.
+
+        Marks the email with the IMAP flag ``\\Deleted`` in the selected mailbox.
+        If ``expunge`` is True, runs ``EXPUNGE`` to permanently remove deleted
+        emails from that mailbox.
+
+        :param uid: IMAP UID for the email (bytes).
+        :param mailbox: Mailbox/folder name (default "INBOX").
+        :param expunge: If True, runs EXPUNGE after marking \\Deleted.
+        :raises ConnectionError: If login/select/store/expunge fails.
+        """
+        with imaplib.IMAP4(host=self._imap_server, port=self._imap_port) as server:
+            server.starttls()
+            msg, _ = server.login(self.email, self.password)
+            if msg != "OK":
+                raise ConnectionError("IMAP login failed.")
+
+            status, _ = server.select(mailbox)
+            if status != "OK":
+                raise ConnectionError(f'Failed to select mailbox "{mailbox}".')
+
+            status, _ = server.uid("store", uid, "+FLAGS", "\\Deleted")
+            if status != "OK":
+                raise ConnectionError(f"Failed to mark email UID {uid!r} as \\Deleted")
+
+            if expunge:
+                status, _ = server.expunge()
+                if status != "OK":
+                    raise ConnectionError("Failed to expunge mailbox")
+
     async def list_mailboxes_async(self) -> list[str]:
         """
         List all mailboxes in the IMAP account. (Async)
