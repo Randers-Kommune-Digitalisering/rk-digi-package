@@ -534,7 +534,8 @@ class EmailReader:
         """
         Delete an email by IMAP UID.
 
-        Marks the email with the IMAP flag ``\\Deleted`` in the selected mailbox.
+        Marks the email with the IMAP flag ``\\Deleted`` in the
+        selected mailbox.
         If ``expunge`` is True, runs ``EXPUNGE`` to permanently remove deleted
         emails from that mailbox.
 
@@ -543,7 +544,10 @@ class EmailReader:
         :param expunge: If True, runs EXPUNGE after marking \\Deleted.
         :raises ConnectionError: If login/select/store/expunge fails.
         """
-        with imaplib.IMAP4(host=self._imap_server, port=self._imap_port) as server:
+        with imaplib.IMAP4(
+            host=self._imap_server,
+            port=self._imap_port,
+        ) as server:
             server.starttls()
             msg, _ = server.login(self.email, self.password)
             if msg != "OK":
@@ -555,7 +559,9 @@ class EmailReader:
 
             status, _ = server.uid("store", uid, "+FLAGS", "\\Deleted")
             if status != "OK":
-                raise ConnectionError(f"Failed to mark email UID {uid!r} as \\Deleted")
+                raise ConnectionError(
+                    f"Failed to mark email UID {uid!r} as \\Deleted"
+                )
 
             if expunge:
                 status, _ = server.expunge()
