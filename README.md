@@ -186,6 +186,9 @@ Reading/getting emails can be done with `get_emails` / `get_emails_async`. The `
 
 A single email can be fetched by uid using `get_email_by_uid` / `get_email_by_uid_async`, it takes the parameters `uid` and `mailbox` and returns a [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) object with uid attribute set.
 
+An email can be deleted by UID using `delete_email_by_uid`. This marks the message with the IMAP flag `\Deleted` in the selected mailbox. If `expunge=True` (default), the method will also run `EXPUNGE`, which permanently removes messages marked as
+`\Deleted` in that mailbox.
+
 #### Sync example
 ```python
 from rkdigi import EmailReader
